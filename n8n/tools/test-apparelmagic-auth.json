@@ -1,0 +1,52 @@
+{
+  "name": "Test ApparelMagic Auth",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/products/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" },
+            { "name": "pagination[page_number]", "value": "1" },
+            { "name": "pagination[page_size]", "value": "5" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "apparelmagic-get-products",
+      "name": "GET ApparelMagic Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "credentials": {
+        "queryAuth": {
+          "name": "ApparelMagic Token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": {
+      "main": [
+        [
+          { "node": "GET ApparelMagic Products", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "After import, open the HTTP Request node and create a 'Query Auth' credential: Name = token, Value = your ApparelMagic API key. `time` is added as a separate query param on the node and is computed fresh every run. Confirm a 200 with a `response` array in the output."
+  }
+}

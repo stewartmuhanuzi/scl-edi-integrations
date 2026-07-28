@@ -1,0 +1,50 @@
+{
+  "name": "Test Orderful Auth",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.orderful.com/v3/transactions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "stream", "value": "TEST" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "orderful-get-transactions",
+      "name": "GET Orderful Transactions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Orderful API Key"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": {
+      "main": [
+        [
+          { "node": "GET Orderful Transactions", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "After import, open the HTTP Request node and create a 'Header Auth' credential named whatever you like: Name = orderful-api-key, Value = your Orderful API token. Run manually and confirm a 200 with a `data` array in the output."
+  }
+}

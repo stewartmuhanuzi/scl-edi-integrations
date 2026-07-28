@@ -1,0 +1,63 @@
+{
+  "name": "AM Cancel Order",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "o1", "name": "order_id", "value": "", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "order-id",
+      "name": "Order ID (edit me)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://sclfootwear.app.apparelmagic.com/api/json/orders/{{ $json.order_id }}/cancel",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cancel-order",
+      "name": "Cancel Order (PUT)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "credentials": {
+        "queryAuth": { "name": "Query Auth account" }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": {
+      "main": [[{ "node": "Order ID (edit me)", "type": "main", "index": 0 }]]
+    },
+    "Order ID (edit me)": {
+      "main": [[{ "node": "Cancel Order (PUT)", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "Cleanup for a test order. Re-select the Query Auth credential, put the order_id in 'Order ID', Execute."
+  }
+}

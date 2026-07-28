@@ -1,0 +1,252 @@
+
+===== SHEET 1: 943 =====
+EDI Field name | Qualifier | Value | Usage | Code | Remark | What is sent today? | Factory ASN | Distribution Order | Customer Returns
+Document Type | 943 - Inbound Purchase Order
+Source System | Vida M3 - WHSE WMS
+EDI Field name | Qualifier | Value | Usage | Code | Remark | What is sent today? | Factory ASN | Distribution Order | Customer Returns | New Update
+ISA - Interchange Control Header
+ISA01 |  | Authorization Info qualifier | M
+ISA03 |  | Security Info Qualifier | M
+ISA05 |  | Interchange ID qualifier | M
+ISA06 |  | Sender ID | M
+ISA07 |  | ISA05 | M
+ISA08 |  | Receiver ID | M
+ISA09 |  | Interchange Date | M
+ISA10 |  | Interchange Time | M
+ISA11 |  | Control standards identifier | M
+ISA12 |  | Control version number | M
+ISA13 |  | Control number assigned by sender | M
+ISA14 |  | Acknowledgment requested | M
+ISA15 |  | Usage indicator (test or production) | M
+ISA15 = "P" | Production Data |  |  |  | P for PRD; T for TST | P for PRD; T for TST | P for PRD; T for TST | P for PRD; T for TST
+ISA16 |  | Component element separator (delimiter)
+GS - Functional Group Header
+GS01 |  | Functional ID code | M
+GS02 |  | ISA06 | M
+GS03 |  | ISA08 | M
+GS04 |  | Date | M
+GS05 |  | ISA10 | M
+GS06 |  | Group control number by sender | M
+GS07 |  | Responsible agency code | M
+GS08 |  | Version | M
+ST - Transaction Set Header
+ST01 |  | Transaction Set Identifier Code | M | 943 |  | 943 | 943 | 943 | 943
+ST02 |  | Transaction Set Control Number
+W06 - Warehouse Shipment Identification
+W0601 |  | Reporting code
+W0602 | W0601 = F | Order Number | M |  |  | Delivery Note Number - Need it back in 944 | Delivery Note Number - Need it back in 944 | Delivery Number - Need it back in 944 | RMA Number - Need it back in 944
+W0603 |  | GS04 | M |  |  | Delivery Note Creation Date - Sent in YYYYMMDD and Need it back in 944 | Delivery Note Creation Date - Sent in YYYYMMDD and Need it back in 944 - Confirmed, we need it back. It's a key filed for M3 API
+W0611 |  | Transaction Type Code | M |  |  |  | "PO" - Need it back in 944 | "DO" - Need it back in 944 | "RMA" - Need it back in 944
+N1 - Party Identification
+N101 |  |  | M
+N102 | N101 =  VN |  | M |  | *DCG (Jambu/Vida/GEN/SCL) | Currently we send VIDA always in this field. And then in N104 segment, we send one of these 4 codes:
+VIDASHOE
+JAMBU
+SCL
+GENERATION
+
+This communicates:
+VIDASHOE - It is Vida ASN for Non Jambu brand
+JAMBU - It is Vida ASN for Jambu brand
+SCL - It is Shoe Confession ASN
+GENERATION - It is Generation ASN | We don't need it anymore. You can identify if it is VIDASHOE, or SCL or Generation ASN from PER02. And if it is Jambu vs Non-Jambu from Brand in N902. 
+
+We wouldn't send it anymore
+N102 | N101 =  LW |  |  |  |  |  |  |  | M3 Customer Number - Need it back in 944 | Removed
+N102 | N101 =  WH |  | M |  |  |  |  | M3 warehouse code for sending warehouse - Need it back in 944 |  | Removed
+N103 |  | ID code qualifier
+N104 | N101 = VN | Code identifying party |  |  |  | Currently, in this field, we send:
+VIDASHOE
+JAMBU
+SCL
+GENERATION | We wouldn't send it anymore
+N9 - Extended Reference Information
+N901 |  | Reference Identification Qualifier
+N902 | N901 = SI | Trailer/Container Number | M |  |  | Container Number | Container Number
+N901 = ZA |  |  |  |  |  | M3 Supplier Number - Need it back in 944 for M3 API
+N901 = DO | Return Arthurzation number | M |  |  |  |  | Distribution Order Number - Need it back in 944 |  | Removed
+N901 = TF | Warehouse Transfer Order
+N901 = R9 | Rejection Number | O |  |  |  |  |  | Customer Refusal Reason = '1' 
+Note: Not always sent. Sent only if customer refused to accept the goods
+N901 = KK | Delivery Reference | M |  |  |  | Delivery Method - Information for  operations team |  | Delivery Method - Information for  operations team
+N901 = ZZ
+
+We wouldn't send it |  |  |  |  |  | Purchase Order Type - Added in V2 - Removed in V3
+PER - Administrative Communications Contact
+PER01 |  | Contact Function Code
+PER02 | PER01 = WH | Warehouse |  | PROD |  | Currently, in this segment we send Warehouse Physical location. Makes sense for DCG warehouse, since they have different physical locations. 
+ | M3 warehouse code for Receiving warehouse - Need it back on 944
+
+For DCG: Liz to communicate mapping of M3 WHLO to pyhsical locations in DCG system
+ | M3 warehouse code for Receiving warehouse - Need it back on 944
+
+For DCG: Liz to communicate mapping of M3 WHLO to pyhsical locations in DCG system
+ | M3 warehouse code for Receiving warehouse - Need it back on 944
+
+
+For DCG: Liz to communicate mapping of M3 WHLO to pyhsical locations in DCG system
+
+Added in V3 | removed
+G62 - Date/Time
+G6201 |  | Date Qualifier
+G6202 | G6201 = 17 | Expected Delivery date | M |  |  | Expected Delivery date in YYYYMMDD format | Expected Delivery date in YYYYMMDD format | Departure Date by sending warehouse in YYYYMMDD format | Expected Delivery date in YYYYMMDD format
+W04 - Item Detail Total
+W0401 |  | Number Of Units Shipped | M |  |  | Qty | Qty
+
+ | Qty | Qty
+W0402 |  | UOM (EA = Eaches, CA=Cases) | M | "EA" |  | UOM | UOM | UOM | UOM
+W0403 |  | M3 Uquine Item # |  |  | Used to be UPC code | UPC is not sent anymore | UPC is not sent anymore | UPC is not sent anymore | UPC is not sent anymore
+W0404
+W0405 | W0404 = VN | PRODUCT/SERVICE ID | M | Item ID has to be unique and may be represented as a combination of Style, Color and Size using '+' as a concatenating AN. | ?? | M3 Uquine Item | M3 Uquine Item | M3 Uquine Item | M3 Uquine Item
+W0407 | W0406 = IT | Style |  |  |  | Style is not sent anymore | Style is not sent anymore | Style is not sent anymore | Style is not sent anymore
+W0411 | W0410 = Z |  |  |  |  | Color not sent anymore | Color not sent anymore | Color not sent anymore | Color not sent anymore
+W0412 |  | Line Number | M |  |  | Line Number | Line Number | Line Number | Line Number
+W0415 | W0414 = IZ |  | M |  |  | Size Code - is not sent anymore | Pack Qty - Information for  operations team | Pack Qty - Information for  operations team | Pack Qty - Information for  operations team
+G69 Line Item Detail - Description
+G6901 |  | Item Description |  |  |  | Style Description is not sent anymore | Style Description is not sent anymore | Style Description is not sent anymore | Style Description is not sent anymore
+N9 - Extended Reference Information
+N902 | N901 = PO | Customer PO No |  | Customer PO for Speical Buy |  | Customer PO No - Only sent in case of Special Buy | For certain speical buy customers only
+N902 | N901 = CH | Segment Value/Label/Customer code | M | Customer Att for Speical Buy |  | Customer Att for Speical Buy - Information for  operations team | Customer Att for Special Buy - Only sent in case of Special Buy
+
+Information for operations team
+N902 | N901 = CO | Customer Order No | M | M3 Order Number |  | M3 Factory Order Number | M3 Factory Order Number | Customer PO | Added for RMA order
+N902 | N901 = ZZ | Production No |  |  |  | Production No is not sent anymore | Production No is not sent anymore | Production No is not sent anymore | Production No is not sent anymore
+N902 | N901 = GM | Case ID(SSCC) | M |  |  | Case ID(SSCC)
+
+Note: Currently we might send 1 or more of this segment | Case ID(SSCC)
+
+Not new for ODW warehouse
+New for DCG warehouse though
+ | SSCC number - Not sent when sending warehouse is Amazon, Danzia and Zulily
+N902 | N901 = DI |  | M |  |  | Brand Description | Brand Description | Brand Description | Brand Description
+N902 | N901 = DV |  | M |  |  | Brand | Brand | Brand | Brand
+N902 | N901 = IT |  | M |  |  |  | Customer Name
+N902 | N901 = 8
+N902 | N901 = 7G
+N903 | N901 = GM | CASE QTY |  |  |  | Case Qty | Qty in the package
+
+Not new for ODW warehouse
+New for DCG though warehouse
+CTT - Transaction Totals
+CTT01 |  | Total number of line items
+SE - Transaction Set Trailer
+SE01 |  | Number of included Segments | M
+SE02 |  | ST02 | M
+GE - Functional Group Trailer
+GE01 | Number of transaction sets included | M
+GE02 | ISA13 | M
+IEA - Interchange Control Trailer
+IEA01 | number of functional groups count | M
+IEA02 | ISA13 | M
+
+===== SHEET 2: 944 =====
+EDI Field name | Qualifier | Value | Usage | Factory ASN | Distribution Order | Customer Returns
+Document Type | 943 - Inbound Purchase Order
+Source System | WHSE WMS - Vida M3
+EDI Field name | Qualifier | Value | Usage | Factory ASN | Distribution Order | Customer Returns | New Update
+ISA - Interchange Control Header
+ISA01 |  | Authorization Info qualifier | M
+ISA03 |  | Security Info Qualifier | M
+ISA05 |  | Interchange ID qualifier | M
+ISA06 |  | Sender ID | M
+ISA07 |  | ISA05 | M
+ISA08 |  | Receiver ID | M
+ISA09 |  | Interchange Date | M
+ISA10 |  | Interchange Time | M
+ISA11 |  | Control standards identifier | M
+ISA12 |  | Control version number | M
+ISA13 |  | Control number assigned by sender | M
+ISA14 |  | Acknowledgment requested | M
+ISA15 |  | Usage indicator (test or production) | M | P for PRD; T for TST | P for PRD; T for TST | P for PRD; T for TST
+ISA15 = "P" | Production Data | M
+ISA16 |  | Component element separator
+GS - Functional Group Header
+GS01 |  | Functional ID code | M
+GS02 |  | ISA06 | M
+GS03 |  | ISA08 | M
+GS04 |  | Date | M
+GS05 |  | Time | M
+GS06 |  | Group control number by sender | M
+GS07 |  | Responsible agency code | M
+GS08 |  | Version | M
+ST - Transaction Set Header
+ST01 |  | Transaction Type | M | 944 | 944 | 944
+ST02 |  | Transaction Set | M
+W17 - Warehouse Receipt Identification
+W1701 |  | Reporting Code | M
+W1702 |  | Date of Receipt | M
+W1703    |  | Warehouse receipt number | M
+W1704 |  | Depositor order number | M | Delivery Note Number - As sent in 943 | M3 Delivery Number - As sent in 943 | RMA Number - As sent in 943
+N1 - Party identification
+N101 |  | Entity Identifier Code | ID
+N102 | N101 = WH | Warehouse Code | M |  | M3 warehouse code for sending warehouse - As sent in 943 N102 for N101 = WH |  | removed
+N102 | N101 = VN | Vendor  | M
+N102 | N101 = SU |  | M | Supplier Number - As sent in 943
+N102 | N101 = LW |  |  |  |  | M3 Customer Number | removed
+N9 - Extended Reference Information
+N901 |  | Reference ID qualifier | M
+N902 | N901 = TN | Transaction Reference Number |  | "PO" - As sent in 943 | "DO" - As sent in 943 | "RMA" - As sent in 943
+N902 | N901 = CH | Customer PO Number | O |  | Distribution Order Number - As sent in 943 |  | removed
+N902 | N901 = WS |  |  | M3 warehouse code for receiving warehouse - Sent in PER02 segment on 943 - Added in V3 | M3 warehouse code for receiving warehouse - Sent in PER02 segment on 943 - Added in V3 | M3 warehouse code for receiving warehouse - Sent in PER02 segment on 943 - Added in V3 | removed
+G62
+G6201 |  | Date Qualifier | M
+G6202 | G6201 = 68 | Date | M | Delivery Note Creation Date - As sent in 943
+W07 - Item Detail For Stock Receipt
+W0701 |  | Quantity Received | M |  | Qty | Qty returned by the customer
+W0702 |  | UOM | M |  | UOM | UOM
+W0705 | W0704 = VN | Product Code | M | M3 Uquine Item #
+Note: UPC is not sent anymore | M3 Uquine Item #
+Note: UPC is not sent anymore | M3 Uquine Item #
+Note: UPC is not sent anymore
+W0708 | W0707 = PL | PO Line Number | O |  | Distribution Order Line Number - As sent in 943 | Customer Return Line Number - As sent in 943
+N9 - Extended Reference Information
+N901 |  | Reference ID qualifier | M
+N902 | N901 = LI | Customer PO Number | O | Unique value for every W0701 segment reported back - It might be an Auto-incremented value - Very important for Vida - Added in V3 | Unique value for every W0701 segment reported back - It might be an Auto-incremented value - Very important for Vida - Added in V3 | Unique value for every W0701 segment reported back - It might be an Auto-incremented value - Very important for Vida - Added in V3
+N902 | N901 = 1Q | Error Identification Code | O
+N902 | N901 = LOS
+N902 | N901 = 8 |  |  | SSCC number | SSCC number - Just FYI: SSCC number might not always be entered by operations. For ex: When goods are received from Amazon, Danzia and Zulily
+N902 | N901 = QR
+
+We don't need it |  |  | Quality Inspection Result
+
+Acceptable Codes:
+1 = Approved 
+4 = Rejected
+N902 | N901 = 7G |  |  | Condition of goods returned
+
+Acceptable Codes:
+10 - Good Condition
+11 - Missing
+12 - Scrap/Water Damaged/Damaged
+13 - Crushed | Condition of packages returned
+
+Acceptable Codes: 
+10 - Good Condition
+11 - Missing
+12 - Scrap/Water Damaged/Damaged
+13 - Crushed
+ | Condition of goods returned 
+
+Acceptable Codes:
+10 -  Good Condition
+12 -  Rejected Condition
+13 -  Needs rework
+N902 | N901 = ZZ
+N902 | N901 = WS
+
+We don't need it |  |  | Put away location - We don't need it. Removed in V3
+W20 - Line Item Detail - Packing
+W2001 |  | Pack | M
+W2003 |  | Weight UM | M
+W2004 |  | Weight | M
+W2005 |  | Weight Qualifier | M
+W2006 |  | Weight Unit Code | M
+SE - Transaction Set Trailer
+SE01 |  | Number of included segments | M
+SE02 |  | Transaction Set Control Number | M
+GE - Functional Group Trailer
+GE01 |  | Number of transaction sets included | M
+GE02 |  | ISA13 | M
+IEA - Interchange Control Trailer
+IEA01 |  | Number of Included Functional Groups | M
+IEA02 |  | ISA13 | M

@@ -1,0 +1,330 @@
+
+===== SHEET 1: 940 - Outbound Shipment Order =====
+EDI Field name | Qualifier | Value | Usage |  | Changes on Customer Order |  | Customer Order - DS | Customer Order - Direct to Store/DC | Customer Order - Mark for Store/Ship to DC |  | Distribution Order |  | Rework Order
+Document Type | 940 - Outbound Shipment Order
+Source System | VIDA M3 to WHSE WMS
+EDI Field name | Qualifier | Value | Usage |  |  |  | Customer Order - DS | Customer Order - Direct to Store/DC | Customer Order - Mark for Store/Ship to DC |  | Distribution Order |  | Rework Order | New Update
+ISA - Interchange Control Header
+ISA01 |  | Authorization Info qualifier | M
+ISA03 |  | Security Info Qualifier | M
+ISA05 |  | Interchange ID qualifier | M
+ISA06 |  | Sender ID | M
+ISA07 |  | ISA05 | M
+ISA08 |  | Receiver ID | M
+ISA09 |  | Interchange Date | M
+ISA10 |  | Interchange Time | M
+ISA11 |  | Control standards identifier | M
+ISA12 |  | Control version number | M
+ISA13 |  | Control number assigned by sender | M
+ISA14 |  | Acknowledgment requested | M
+ISA15 |  | Usage indicator | M
+ISA15 = "P" | Production Data |  |  |  |  | P for PRD; T for TST | P for PRD; T for TST | P for PRD; T for TST |  | P for PRD; T for TST |  | P for PRD; T for TST
+ISA16 |  | Component element separator (delimiter)
+GS - Functional Group Header
+GS01 |  | Functional identifier code | M
+GS02 |  | ISA06 | M
+GS03 |  | ISA08 | M
+GS04 |  | Date | M
+GS05 |  | ISA10 | M
+GS06 |  | Group control number by sender | M
+GS07 |  | Responsible agency code | M
+GS08 |  | Version | M
+ST - Transaction Set Header
+ST01 |  | Transaction Type | M |  |  |  | 940 | 940 | 940 |  | 940 |  | 940
+ST02 |  | Transaction Set | M
+W05 - Shipping Order Identification
+W0501 |  | Order status code | M
+W0501 = "N" | Original |  |  |  |  | N | N | N |  | N |  | N
+W0502 |  | Shipment Number | M |  |  |  | M3 Delivery Number - Need it back in 945 | M3 Delivery Number - Need it back in 945 | M3 Delivery Number - Need it back in 945 |  | M3 Delivery Number - Need it back in 945 |  | M3 Delivery Number - Need it back in 945
+W0503 |  | Customer PO No | M |  |  |  | Vida Customer PO Number | Vida Customer PO Number | Vida Customer PO Number
+W0506 |  | Transaction Type Code |  |  | New |  | 42 | 42 | 42 |  | 10 |  | 13
+N1 - Party Identification
+N102
+N101 =  ST | Customer Ship To  | M |  |  |  | End customer Name | Store/DC Name | Ship Via Name (DC) |  | To Warehouse Name
+N101 =  BT | Customer Bill To | M |  |  |  | Customer Name | Customer Name | Customer Name
+N101 =  BF | Consumer Billing  |  |  |  |  | Bill from Address
+N101 =  SN | Mark-For Customer | O |  |  |  |  |  | Mark-For Store Name
+N101 =  SF | Ship-From | O |  | We wouldn't send it anymore |  | We wouldn't send it anymore | We wouldn't send it anymore | We wouldn't send it anymore |  | We wouldn't send it anymore |  | We wouldn't send it anymore
+N101 =  VN | Vendor  | M |  | We wouldn't send it anymore |  | We wouldn't send it anymore | We wouldn't send it anymore | We wouldn't send it anymore |  | We wouldn't send it anymore |  | We wouldn't send it anymore
+N104
+N104 =  ST
+N103 = 91 |  | M |  |  |  | ST code if used by customer. Ex: Macy's use 0149 always.
+
+It might not be always sent | Store/DC ID | Ship Via Address Id |  | M3 to Warehouse Code
+N104 =  BT
+N103 = 92 |  | M |  |  |  | M3 Customer Number | M3 Customer Number | M3 Customer Number
+N104 =  SN
+N103 = 91 |  | O |  |  |  |  |  | Store Address ID
+N101 =  VN
+N103 = 91 |  | M |  | We wouldn't send it anymore |  | We wouldn't send it anymore | We wouldn't send it anymore | We wouldn't send it anymore |  | We wouldn't send it anymore |  | We wouldn't send it anymore
+N3 - Party Location
+N301 |  | Address Information
+N101 =  ST |  | M |  |  |  | Address Line 1 | Address Line 1 | Address Line 1 |  | Address Line 1
+N101 =  BT |  | O |  |  |  | Address Line 1 | Address Line 1 | Address Line 1
+N101 =  BF |  |  |  |  |  | Address Line 1
+N101 =  SN |  | O |  |  |  |  |  | Address Line 1
+N302
+N101 =  ST |  | M |  |  |  | Address Line 2 | Address Line 2 | Address Line 2 |  | Address Line 2
+N101 =  BT |  | O |  |  |  | Address Line 2 | Address Line 2 | Address Line 2
+N101 =  BF |  |  |  |  |  | Address Line 2
+N101 =  SN |  | O |  |  |  |  |  | Address Line 2
+N4 - Geographic Location
+N401
+N101 =  ST |  | M |  |  |  | City | City | City |  | City
+N101 =  BT |  | O |  |  |  | City | City | City
+N101 =  BF |  |  |  |  |  | City
+N101 =  SN |  | O |  |  |  |  |  | City
+N402
+N101 =  ST |  | M |  |  |  | State | State | State |  | State
+N101 =  BT |  | O |  |  |  | State | State | State
+N101 =  BF |  |  |  |  |  | State
+N101 =  SN |  | O |  |  |  |  |  | State
+N403
+N101 =  ST |  | M |  |  |  | Zip Code | Zip Code | Zip Code |  | Zip Code
+N101 =  BT |  | O |  |  |  | Zip Code | Zip Code | Zip Code
+N101 =  BF |  |  |  |  |  | Zip Code
+N101 =  SN |  | O |  |  |  |  |  | Zip Code
+N404
+N101 =  ST |  | M |  |  |  | Country Code | Country Code | Country Code |  | Country Code
+N101 =  BT |  | O |  |  |  | Country Code | Country Code | Country Code
+N101 =  BF |  |  |  |  |  | Country Code
+N101 =  SN |  | O |  |  |  |  |  | Country Code
+N9 - Extended Reference Information
+N902 |  | Reference Identification
+N901 = 4B | Shipment Origin Code |  |  | New |  | M3 Code for From Warehouse - We need it back in 945 | M3 Code for From Warehouse - We need it back in 945 | M3 Code for From Warehouse - We need it back in 945 |  | M3 Code for From Warehouse - We need it back in 945 |  | M3 Code for From Warehouse - We need it back in 945 | Removed
+N901 = 4C | Shipment Destination Code |  |  | New |  |  |  |  |  | M3 to Warehouse Code - Need it back on 945 |  |  | Removed
+N901 = 12 | Customer's small parcel account number |  |  |  |  | Customer's small parcel carrier account | Customer's small parcel carrier account | Customer's small parcel carrier account
+N901 = 14 | Customer ID |  |  | If needed back on 945, brainstorm again |  | Not sent anymore - This information is now sent in N104 when N101 = BT | Not sent anymore - This information is now sent in N104 when N101 = BT | Not sent anymore - This information is now sent in N104 when N101 = BT
+N901 = 19 |  |  |  |  |  | Mason Logo Code
+N901 = 21 |  |  |  |  |  | Dillard Proof of Purchase
+N901 = CL | Label Type | O |  | We wouldn't send this anymore |  | Label Type is not sent anymore | Label Type is not sent anymore | Label Type is not sent anymore
+N901 = CO | M3 Customer Order Number |  |  |  |  | M3 Customer Order Number | M3 Customer Order Number | M3 Customer Order Number |  | M3 DO number |  | M3 Rework Order number | Removed
+N901 = CR | Customer Reference Number |  |  |  |  | End Consumer Order No - In case of DS Order | End Consumer Order No - Same as Customer PO Number in case of Ship Direct to Store/DC | End Consumer Order No - Same as Customer PO Number in case of Mark for Store/Ship to DC
+N901 = DP | Dept Number | O |  |  |  | Department Number | Department Number | Department Number
+N901 = DSC | Discount |  |  |  |  | Discount - DS orders only
+N901 = DV | Division Number | O |  | We wouldn't send this anymore |  | Brand is sent currently? - Not sent anymore since lines from multiple brands might be sent in one 940 | Brand is sent currently? - Not sent anymore since lines from multiple brands might be sent in one 940 | Brand is sent currently? - Not sent anymore since lines from multiple brands might be sent in one 940
+N901 = IA | Vendor Number | O |  |  | Customer Assigned Vendor Number to Vida | Customer Assigned Vendor Number to Vida | Customer Assigned Vendor Number to Vida
+N901 = IT |  |  |  | New |  | M3 Customer Number - Need back in 945 | M3 Customer Number - Need back in 945 | M3 Customer Number - Need back in 945 |  |  |  |  | Removed
+N901 = LU |  |  |  | New |  |  |  |  |  |  |  | Rework Location - We need it back in 945 | Removed
+N901 = MF |  |  |  |  |  |  | Cater's Customer Country Code
+N901 = OC |  |  |  |  |  | DSW Offer Code
+N901 = PL | Total Price | O |  |  |  | Price Total - DS orders only
+N901 = PT | Purchase Option Agreement | O |  |  |  | Purchase Option Agreement -  Only for DS
+N901 = PQ |  |  |  |  |  | Method of payment
+N901 = RC |  |  |  |  |  | DSW Reward Certificate Amount
+N901 = RSN |  |  |  |  |  | Macy's Reservation Number
+N901 = RY |  |  |  |  |  | DSW Rewards Member Number
+N901 = SH | Shipping Code | O |  |  |  | Shipping Code - DS orders only
+N901 = ST | Ship to Number(Store Number) | O |  | We wouldn't send this anymore |  | Not sent anymore - This information is now sent in N104 when N101 = ST | Not sent anymore - This information is now sent in N104 when N101 = ST | Not sent anymore - This information is now sent in N104 when N101 = ST
+N901 = T9 |  |  |  |  |  | DSW Transaction Number
+N901 = TO | Sub total |  |  |  |  | Sub total
+N901 = TX | Sales Tax |  |  |  |  | Sales Tax - DS orders only
+G62 - Date/Time
+G6201 |  | Date Qualifier
+G6202 |  | Date
+G6201  =  10 | 
+EARLIEST_SHIP_DATE | M |  |  |  | 
+EARLIEST_SHIP_DATE | 
+EARLIEST_SHIP_DATE | 
+EARLIEST_SHIP_DATE |  | 
+EARLIEST_SHIP_DATE |  | Date Rework was created in M3
+G6201  = 01 | CANCEL_SHIP_DATE | M |  |  |  | CANCEL_SHIP_DATE | CANCEL_SHIP_DATE | CANCEL_SHIP_DATE |  | Not sent |  | Not sent
+NTE - Note/Special Instruction
+NTE01 |  | Note Reference Code
+NTE02 | NTE01 = ZZ | Description | O |  | New |  | Gift Message
+NTE02 | NTE01 = PKG | Description | O |  | We wouldn't send this anymore |  | Package Requirement - is not sent anymore | Package Requirement - is not sent anymore | Package Requirement - is not sent anymore
+W66 - 	Warehouse Carrier Information
+W6601 |  | Shipping method of payment | M |  |  |  | Delivery Terms:
+PP : Prepaid
+CC: Collect
+TP: Third Party | Delivery Terms:
+PP : Prepaid
+CC: Collect
+TP: Third Party | Delivery Terms:
+PP : Prepaid
+CC: Collect
+TP: Third Party |  | PP - Ignore it. Sending default value just to make sure I can use this segment
+W6605 |  | M3 Carrier Code | O |  |  |  | Delivery Method | Delivery Method | Delivery Method |  | Delivery Method
+W6610 |  | Standard Carrier Alpha Code | M |  | We wouldn't send this anymore |  | SCAC not sent anymore | SCAC not sent anymore | SCAC not sent anymore
+LX - Transaction Set Line Number
+LX01 |  | Line Sequence Number |  |  |  |  | Line Number - Nedeed back in 945 | Line Number - Nedeed back in 945 | Line Number - Nedeed back in 945 |  | Line Number - Nedeed back in 945 |  | Line Number - Nedeed back in 945
+W01 - Line Item Detail
+W0101 |  | Ordered Quantity | M |  |  |  | Qty | Qty | Qty |  | Qty |  | Qty
+W0102 |  | UOM (EA = Eaches, CA=Cases) | M |  |  |  | UOM | UOM | UOM |  | UOM |  | UOM
+W0103 |  | UPC Code | M |  | Note: This has changed
+
+Currently, we send VIDA UPC in this field |  | Only used for Kohl's to communicate Kohl's UPC code for the item. Needed for labelling.
+ | Only used for Kohl's to communicate Kohl's UPC code for the item. Needed for labelling.
+ | Only used for Kohl's to communicate Kohl's UPC code for the item. Needed for labelling.
+ |  | UPC is not sent anymore |  | UPC is not sent anymore
+W0104 |  | Product/Service ID Qualifier
+W0105 | W0104 = CB | Buyer's Item Number | O |  |  |  | Customer Item Number - Might not be always sent | Customer Item Number - Might not be always sent | Customer Item Number - Might not be always sent
+W0106 |  | Product/Service ID Qualifier |  |  | VN |  |  |  |  |  | VN |  | VN
+W0107 | W0106 = VN | Item Code | M |  | This is M3 Item Number now |  | M3 Item Number | M3 Item Number | M3 Item Number |  | M3 Item Number |  | M3 Item Number
+W0115 |  | Product/Service ID Qualifier
+W0116 | W0104 = PQ | Product ID Attribute Code |  |  |  |  | Customer Special Buy Code | Customer Special Buy Code | Customer Special Buy Code |  | Customer Special Buy Code |  | Customer Special Buy Code
+G69 - Line Item Description
+G6901 |  | Item Description | M |  |  |  | Style Name/Description | Style Name/Description | Style Name/Description |  | Product Information like Sandals, Boots etc
+N9 - Extended Reference Information
+N901 |  | Reference Identification Qualifier
+N902 |  | Reference Identification
+N9=CH | special buys that mirror to 943 |  |  |  |  |  | Customer Attribute for Special buy | Customer Attribute for Special buy
+N9=CO | special buys that mirror to 943 |  |  |  |  |  | PO number for certain customers | PO number for certain customers
+N901 = BP |  |  |  |  |  | Mason Item
+N901 = CD |  |  |  |  |  | Cater's Dim Code | Kohl'd Box ID | Kohl'd Box ID
+N901 = CS |  |  |  |  |  |  | Class | Class
+N901 = DV |  | O |  |  |  | Brand | Brand | Brand |  | Brand |  | Brand
+N901 = IS |  |  |  |  |  | Customer Style Name - Might not be always sent | Customer Style Name - Might not be always sent | Customer Style Name - Might not be always sent
+N901 = IZ |  |  |  |  |  | Customer Size Code - Might not be always sent | Customer Size Code - Might not be always sent | Customer Size Code - Might not be always sent
+N901 = LI |  | O |  |  |  | Carter's Customer PO Line Code
+N901 = OZ | PrePack Component Detail |  |  |  |  | Never Sent for DS | Currently, UPC code is sent. Going forward, M3 Item numbeer for component will be sent | Currently, UPC code is sent. Going forward, M3 Item numbeer for component will be sent |  | Currently, UPC code is sent. Going forward, M3 Item numbeer for component will be sent |  | Currently, UPC code is sent. Going forward, M3 Item numbeer for component will be sent
+N901 = P8 |  |  |  | New |  | Picking List Suffix - WH doesn't need to know it. To be sent back on 945 though | Picking List Suffix - WH doesn't need to know it. To be sent back on 945 though | Picking List Suffix - WH doesn't need to know it. To be sent back on 945 though |  | Picking List Suffix - WH doesn't need to know it. To be sent back on 945 though |  | Picking List Suffix - WH doesn't need to know it. To be sent back on 945 though
+N901 = PC |  |  |  |  |  |  | Cater's Pack Code
+N901 = RT |  | O |  |  |  | Customer Retail Price - Might not be always sent | Customer Retail Price - Might not be always sent | Customer Retail Price - Might not be always sent
+N901 = SU |  |  |  |  |  |  | Sub-class | Sub-class
+N901 = SZ |  | O |  | We wouldn't send this anymore |  | Vida Size Code - is not sent anymore | Vida Size Code - is not sent anymore | Vida Size Code - is not sent anymore
+N901 = TV |  | O |  |  |  |  | Gender Code | Gender Code
+N901 = VC |  | O |  |  |  | Customer Color Code - Might not be always sent | Customer Color Code - Might not be always sent | Customer Color Code - Might not be always sent
+N901 = CTN
+
+Used when components are sent |  |  |  | We wouldn't send this anymore |  |  | This is used to communicate total number of pairs in a pack - It is not used anymore
+
+N901 = ZZ is used instead | This is used to communicate total number of pairs in a pack - It is not used anymore
+
+N901 = ZZ is used instead
+N901 = ZZ |  |  |  |  |  | Pack Qty - Not sent in case of DS | If not prepack and if customer sends pack qty requirement other than 12 it will be communciated in this segment or in case of special buy pack qty other than 12 will also cover | If not prepack and if customer sends pack qty requirement other than 12 it will be communciated in this segment or in case of special buy pack qty other than 12 will also cover |  | Expected Pack Quantity |  | Expected Pack Quantity
+N903 | N901 = OZ | PrePack Component Detail |  |  |  |  | Never Sent for DS | Customer Item Number - Might not always be sent  | Customer Item Number - Might not always be sent
+N901 = VC |  |  |  |  |  | Color Description - Might not be always sent | Color Description - Might not be always sent | Color Description - Might not be always sent
+N908 |  | Free-Form Description
+N901 = OZ & 
+N907 = P7 |  |  |  |  |  | Never Sent for DS | Component Quantity in pack | Component Quantity in pack |  | Component Quantity in pack |  | Component Quantity in pack
+N910 |  | Free-Form Description
+N901 = OZ &
+N909 = X2 |  |  |  |  |  | Never Sent for DS | Component Size | Component Size |  | Component Size |  | Component Size
+W20 - Line Item Detail - Packing
+W2001 |  | Pack (The number of inner containers, or number of eaches if there are no inner containers, per outer container) | O |  | Not sent anymore. We will use N901 = ZZ segment for this |  | Is this sent today? | Is this sent today? | Is this sent today? |  | Is this sent today? |  | Is this sent today?
+W76 - Total Shipping order
+W7601 |  | Total Quantity Order |  |  |  |  | Total number of pairs on order | Total number of pairs on order | Total number of pairs on order |  | Total number of pairs on order |  | Total number of pairs on order
+SE - Transaction Set Trailer
+SE01 |  | Number of included segments | M
+SE02 |  | ST02 | M
+GE - Functional Group Trailer
+GE01 | Number of transaction sets included | M
+GE02 | ISA13 | M
+IEA - Interchange Control Trailer
+IEA01 | number of functional groups count | M
+IEA02 | ISA13 | M
+
+===== SHEET 2: 945 - Outbound Shipment Conf =====
+What is sent today? | Customer Order - DS | Customer Order - Direct to Store/DC | Customer Order - Mark for Store/Ship to DC | Distribution Order | Rework Order
+Document Type | 945 - Outbound Shipment Confirmation
+Source System | WHSE WMS to Vida M3
+EDI Field name | Qualifier | Value | Validation/Logic | Usage | Default Value? | Issues | What is sent today? | Customer Order - DS | Customer Order - Direct to Store/DC | Customer Order - Mark for Store/Ship to DC | Distribution Order | Rework Order | New Update
+ISA - Interchange Control Header
+ISA01 |  | Authorization Info qualifier |  | M
+ISA03 |  | Security Info Qualifier |  | M
+ISA05 |  | Interchange ID qualifier |  | M
+ISA06 |  | Sender ID |  | M
+ISA07 |  | ISA05 |  | M
+ISA08 |  | Receiver ID |  | M
+ISA09 |  | Interchange Date |  | M
+ISA10 |  | Interchange Time |  | M
+ISA11 |  | Control standards identifier |  | M
+ISA12 |  | Control version number |  | M
+ISA13 |  | Control number assigned by sender |  | M
+ISA14 |  | Acknowledgment requested |  | M
+ISA15 |  | Usage indicator (test or production) |  | M
+ISA15 = "P" | Production Data |  |  |  |  |  | P for PRD; T for TST | P for PRD; T for TST | P for PRD; T for TST | P for PRD; T for TST | P for PRD; T for TST
+ISA16 |  | Component element separator
+GS - Functional Group Header
+GS01 |  | Functional ID code
+GS02 |  | ISA06
+GS03 |  | ISA08
+GS04 |  | Date
+GS05 |  | Time
+GS06 |  | Group control number by sender
+GS07 |  | Responsible agency code
+GS08 |  | Version
+ST - Transaction Set Header
+ST01 |  | Transaction Type |  | M
+ST02 |  | Transaction Set |  | M
+W06 - Warehouse Shipment Identification
+W0601 |  | "F" |  | M
+W0602 |  | Shipment No |  | M |  |  |  | M3 Delivery Number - Sent in 940 | M3 Delivery Number - Sent in 940 | M3 Delivery Number - Sent in 940 | M3 Delivery Number - Sent in 940 | M3 Delivery Number - Sent in 940
+W0603 |  | Actual Shipment Date |  | M |  |  |  | Actual Shipment Date | Actual Shipment Date | Actual Shipment Date | Actual Shipment Date
+W0611 |  | Transaction Type Code |  |  |  |  |  | 42 | 42 | 42 | 10 | 13
+N1 - Party Identification
+N101 |  | Entity Identifier Code
+N102 | N101 = SF | Ship From |  | M
+N102 | N101 = ST | Ship To Name |  | M
+N103 |  | Identification code qualifier
+N104 | N101 = ST | Ship To |  | M
+N3 - Party Location
+N301 | N101 = ST | Ship to Address 1 |  | M
+N302 | N101 = ST | Ship to Address 2 |  | M
+N4 - Geographic Location
+N401 | N101 = ST | Ship to City |  | M
+N402 | N101 = ST | Ship to State |  | M
+N403 | N101 = ST | Ship to Postal Code |  | M
+N404 | N101 = ST | Ship to Country |  | O
+N405 |  | Location Qualifier
+N406 |  | Location Identifier
+N9 - Extended Reference Information
+N901 |  | Reference ID qualifier |  | M
+N902 | N901 = 4B |  |  |  |  |  | New | M3 Code for From Warehouse - Sent in 940 | M3 Code for From Warehouse - Sent in 940 | M3 Code for From Warehouse - Sent in 940 | M3 Code for From Warehouse - Sent in 940 | M3 Code for From Warehouse - Sent in 940 | Removed
+N901 = 4C |  |  |  |  |  | New |  |  | JC Penny Consolidator | M3 Code for To Warehouse - Sent in 940 |  | Removed
+N902 | N901 = AO | PRO number |  | O |  |  |  |  | PRO Number - Rarely for Direct to Store/Might have for Direct to DC | PRO Number | PRO Number
+N902 | N901 = BM | BOL Number |  | M |  |  |  |  | BOL Number | BOL Number | BOL Number
+N901 = CO |  |  | M |  |  | New Segment | M3 Customer Order Number - Sent in 940 | M3 Customer Order Number - Sent in 940 | M3 Customer Order Number - Sent in 940 | M3 Distribution Order Number - Sent in 940 | M3 Rework Order Number - Sent in 940 | Removed
+N901 = IT |  |  |  |  |  | New Segment | M3 Customer Number - Sent in 940 | M3 Customer Number - Sent in 940 | M3 Customer Number - Sent in 940 |  |  | Removed
+N902 | N901 = LO | Load / ARN / Dispatch |  |  |  |  |  |  | Load ID | Load ID
+N901 = LU |  |  |  |  |  |  |  |  |  |  | Rework Location - Sent in 940 | Removed
+N902 | N901 = MB | Master BOL Number |  | O |  |  |  |  |  | For JCP shipment only - Added in V2
+N902 | N901= S5 | ARN / Dispatch |  |  |  |  |  |  | ARN / Dispatch
+N902 | N901 = VN | EnterpriseCode |  | M |  |  | Not needed anymore | We don't need it anymoore | We don't need it anymoore | We don't need it anymoore
+N902 | N901 = ZZ |  |  | M |  |  | This is sent in G72 segment today currently | M3 Shipment Method Code for final shipment method for small parcel shipment only | M3 Shipment Method Code for final shipment method for small parcel shipment only | M3 Shipment Method Code for final shipment method for small parcel shipment only
+W27 - Carrier Details (Warehouse)
+W2701 |  | Transportation method |  | M
+W2701 = M | Motor (common carrier) |  |  |  |  |  | Motor (common carrier) | Motor (common carrier) | Motor (common carrier)
+W2702 |  | Scac Code |  | M |  |  |  | Scac Code | Scac Code | Scac Code
+W2703 |  | Carrier Routing |  | O |  |  |  | Shipment Description. We don't need it. Removed in V2 | Shipment Description. We don't need it. Removed in V2 | Shipment Description. We don't need it. Removed in V2
+W2704 |  | Payment Method |  | M |  |  |  | M3 Code for Final Delivery Terms | M3 Code for Final Delivery Terms | M3 Code for Final Delivery Terms
+G72 - Allowance Or Charge
+G7201 |  | Allowance or change number |  | M |  |  | New | 504 | 504 | 504
+G7208 |  | ActualFreightCharge  |  | O |  |  |  | Shipping Charge for small parcel prepaid shpment only | Shipping Charge for small parcel prepaid shpment only | Shipping Charge for small parcel prepaid shpment only
+LX - Transaction Set Line Number
+LX01 | Container Counter | Counter set up using accumulator with pri=1 and with operations set as 1=use pri, 2= increment pri | M |  |  |  | Package Number | Package Number | Package Number | Package Number
+MAN - Marks And Numbers Information |  |  | Repeating element - as many as number of containers
+MAN01 |  | Marks and Numbers Qualifier |  | M
+MAN02 | MAN01 = "W" | Pallet Number
+MAN01 = "GM" | Container SCM |  | M |  |  |  | SSCC Code | SSCC Code | SSCC Code | SSCC Code
+N9 - Extended Reference Information
+N901 |  | Reference Identification Qualifier |  | M
+N901 = 2I | Tracking No |  | O |  |  | New | Tracking No | Tracking No | Tracking No
+N901 = ZZ |  |  | O |  |  | New | Packaging Code - We don’t need it - Removed in V2 | Packaging Code - We don’t need it - Removed in V2 | Packaging Code - We don’t need it - Removed in V2
+W12 - Warehouse Item Detail |  |  | Repeating element - as many as contents of a container
+W1201 |  | "SH" |  | M |  |  |  | "SH" | "SH" | "SH" | "SH" | "SH"
+W1202 |  | Quantity Ordered |  | M |  |  | Not needed anymore | We don't need it anymoore | We don't need it anymoore | We don't need it anymoore | We don't need it anymoore | We don't need it anymoore
+W1203 |  | Number of Units Shipped |  | M |  |  |  | Quantity in that package | Quantity in that package | Quantity in that package | Quantity in that package | Qty moved
+W1204 |  | Unit Of Measure |  | M |  |  |  | UOM | UOM | UOM | UOM | UOM
+W1206 |  | UPC Code |  | M |  |  | Not needed anymore | We don't need it anymore | We don't need it anymoore | We don't need it anymoore | We don't need it anymoore | We don't need it anymoore
+W1208 | W1207 = VN | Item ID |  | M |  |  | This is M3 Item Number now | M3 Item Number - Sent on 940 | M3 Item Number - Sent on 940 | M3 Item Number - Sent on 940 | M3 Item Number - Sent on 940 | M3 Item Number - Sent on 940
+W1218 | W1217 = PL | Pick value from LX01 segment in 940 |  |  |  |  | New - We are not going to use N9*LI segment for this information anymore | M3 Line Number - Sent on 940, Pick value from LX01 segment in 940 | M3 Line Number - Sent on 940, Pick value from LX01 segment in 940 | M3 Line Number - Sent on 940, Pick value from LX01 segment in 940 | M3 Line Number - Sent on 940, Pick value from LX01 segment in 940 | M3 Line Number - Sent on 940, Pick value from LX01 segment in 940
+W1222 | W1221 = PQ |  |  |  |  |  | New |  | Customer Special Buy Code | Customer Special Buy Code | Customer Special Buy Code
+N9 - Extended Reference Information
+N901 |  | Reference Identification Qualifier |  | M
+N902 | N901 = LI | Shipment Line No |  | M |  |  | Very important | Warehouse to send a unique line number for every W12 segment reported back on 945 | Warehouse to send a unique line number for every W12 segment reported back on 945 | Warehouse to send a unique line number for every W12 segment reported back on 945 | Warehouse to send a unique line number for every W12 segment reported back on 945 | Warehouse to send a unique line number for every W12 segment reported back on 945
+N901 = P8 |  |  |  |  |  | New | Pick List Suffix - Send from 940 | Pick List Suffix - Send from 940 | Pick List Suffix - Send from 940 | Pick List Suffix - Send from 940 | Pick List Suffix - Send from 940
+W03 - Total Shipment Information (Warehouse)
+W0301 |  | Number of units shipped |  | M |  |  |  | Total Packages shipped | Total Packages shipped | Total Packages shipped
+W0302 |  | Total Weight |  | M |  |  |  | Total Weight | Total Weight | Total Weight
+W0303 |  | Weight UOM |  | M |  |  |  | Weight UOM | Weight UOM | Weight UOM
+SE - Transaction Set Trailer
+SE01 |  | Number of included segments |  | M
+SE02 |  | Transaction Set Control Number |  | M
+GE - Functional Group Trailer
+GE01 |  | Number of transaction sets included |  | M
+GE02 |  | ISA13 |  | M
+IEA - Interchange Control Trailer
+IEA01 | Number of Included Functional Groups | M
+IEA02 | ISA13 | M

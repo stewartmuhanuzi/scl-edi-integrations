@@ -1,0 +1,84 @@
+
+===== SHEET 1: Mapping =====
+EDI Field name | Qualifier | Value | Usage | Code | Changes | EDI 888 | Notes for Doppio
+ISA - Interchange Control Header
+ISA01 |  | Authorization Information Qualifier | M | 00
+ISA02 |  | Authorization Information   | M
+ISA03 |  | Security Information Qualifer | M | 00
+ISA04 |  | Security Information    | M
+ISA05 |  | Interchange ID Qualifier | M
+ISA06 |  | Interchange Sender ID | M
+ISA07 |  | Interchange ID Qualifier | M
+ISA08 |  | Interchange Receiver ID | M
+ISA09 |  | Interchange Date | M
+ISA10 |  | Interchange Time | M
+ISA11 |  | Repetition Separator | M
+ISA12 |  | Interchange Control Version Number | M
+ISA13 |  | Interchange Control Number | M
+ISA14 |  | Acknowledgment Requsted | M
+ISA15 |  | Usage Indicator | M | P = produciton data
+ISA16 |  | Component Element Separator | M
+GS - Functional Group Header
+GS01 |  | Functional Identifier Code | M | QG = Product Information
+GS02 |  | Application Sender's Code | M | ISA06
+GS03 |  | Application Receiver's Code | M | ISA08
+GS04 |  | Date | M
+GS05 |  | Time | M
+GS06 |  | Group Control Number | M
+GS07 |  | Responsible Agency Code | M
+GS08 |  | Version / Release / Industry Identifier Code | M
+ST - Transaction Set Header
+ST01 |  | Transaction Set Identifier Code | M |  |  | 888
+ST02 |  | Transaction Set Control Number | M
+BGN
+BGN01
+BGN02
+BGN03 |  | Date
+N1 - Name
+N101 |  | Entity Identifier Code | M | VN = Vendor  | Sent today | VN
+N102 |  | Name | M | Free-form name | Sent today | VIDA
+N103 |  | Identification Code Qualifier | O | N103=92 | Sent today | 92
+N104 |  | Identification Code  | O | Code identifying a party | Sent today | AAA/BBB/CCC - Only for DCG - This tells the warehouse the Vida division this SKU belongs to
+G62 - Date / Time
+G6201 |  | Date Qualifier | M | G6201 = 7 | Sent today | 7
+G6202 |  | Effective Date | M |  | Sent today | Today's date
+G53 - Maintenace Type
+G5301 |  | Maintenance type code | M | 001 = Change; 003 = Add Full Item Detail | Sent today | 001 = for SKU change ; 003 = New SKU
+G39 - item Characteristics - Vendor's Selling Uit
+G3901 |  | UPC Code | M |  |  | UPC Code
+G3902 |  | Product ID Qualifier | M | VN = Vendor's Item Number |  | VN
+G3903 |  | Vendors Item Number | M |  |  | Vendors Item Number
+G3904 |  | Special Handling Code | O
+G3905 |  | Unit Weight | O |  |  | Net Weight | MMNEWE = Net
+G3906 |  | Weight Qualifier | O | G = Gross Weight N = Net Weight |  | Gross weight | MMGRWE = Gross
+G3907 |  | Weight Unit Code | O | L = Pounds |  | L
+G3908 |  | Height | O |  |  | To be sent | MMIHEI
+G3909 |  | Unit or Basis for measurement code | O |  |  | IN
+G3910 |  | Width | O |  |  | To be sent | MMIWID
+G3911 |  | Unit or Basis for measurement code | O |  |  | IN
+G3912 |  | Length | O |  |  | To be sent | MMILEN
+G3913 |  | Unit or Basis for measurement code | O |  |  | IN
+G3914 |  | Volume | O |  |  | To be sent | MMVOL3
+G3915 |  | Unit or Basis for measurement code | O |  |  | CI
+G3917 |  | Pack Quantity | O | Number on inner containers |  | Packaging  | MMS001/I - SPAC
+G3919 |  | Unit or Basis for measurement code | O | CA = Case, PR = Pair |  | Basic Unit of Measurement (CA/PR)
+G3923 |  | Product Attribute Qualifier | O | DI = Divison / Brand |  | DI
+G3924 |  | Product Attribute | O | Free-form name |  | Brand Description
+N9 - Refernce Identification
+N901 | N901 = IT | Reference Identification Qualifer | M | IT=Style; BO=Color; IZ=Size; DV=Brand Code
+N902 | N901 = IT | Reference Identification   | M |  |  | Style | MMHDPR
+N902 | N901 = BO | Reference Identification   | M |  |  | Color | HMTZ15 ??
+N902 | N901 = IZ | Reference Identification   | M |  |  | Size | HMTX15 ??
+N902 | N901 = ?? | Reference Identification   | M |  |  | Width | HMTY15 ??
+N902 | N901 = DV | Reference Identification   | M |  |  | Brand Code | MMITCL
+G69 - Line Item Detail - Description
+G6901 |  | Item Description | M | Free-form Description |  | Style Description | MITTTY/TX40
+SE - Trnsaction Set Trailer
+SE01 |  | Number of included segments | M
+SE02 |  | Transaction Set Control Number | M
+GE - Functional Group Trailer
+GE01 |  | Number of Transaction Sets Included | M
+GE02 |  | Group Control Number | M
+IEA - Interchange Control Trailer
+IEA01 |  | Number of Included Functional Groups | M
+IEA02 |  | Interchange Control Number | M

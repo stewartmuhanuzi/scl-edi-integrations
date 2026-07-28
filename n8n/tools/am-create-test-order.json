@@ -1,0 +1,68 @@
+{
+  "name": "AM Create Test Order (TEST company)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "c1", "name": "customer_id", "value": "", "type": "string" },
+            { "id": "c2", "name": "sku_id", "value": "", "type": "string" },
+            { "id": "c3", "name": "qty", "value": "1", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "order-inputs",
+      "name": "Order Inputs (edit me)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/orders/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ \"0\": { header: { customer_id: $json.customer_id, customer_po: \"SCLTEST-\" + Date.now() }, items: [ { sku_id: $json.sku_id, qty: $json.qty, is_taxable: \"1\" } ] } }) }}",
+        "options": {}
+      },
+      "id": "create-order",
+      "name": "Create Order (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "credentials": {
+        "queryAuth": { "name": "Query Auth account" }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": {
+      "main": [[{ "node": "Order Inputs (edit me)", "type": "main", "index": 0 }]]
+    },
+    "Order Inputs (edit me)": {
+      "main": [[{ "node": "Create Order (POST)", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "AM instance is in TESTING MODE (safe). 1) Re-select the Query Auth credential on 'Create Order'. 2) In 'Order Inputs', fill customer_id + sku_id (from AM). 3) Execute. Output shows the created order_id and the SCLTEST-<ts> customer_po. Delete test data via the AM banner, or cancel via the AM Cancel Order workflow."
+  }
+}

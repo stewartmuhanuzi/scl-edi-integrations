@@ -1,0 +1,155 @@
+{
+  "name": "SCL: 856 ASN + 810 Invoice (Orderful outbound)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [160, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/shipments/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" },
+            { "name": "pagination[page_number]", "value": "1" },
+            { "name": "pagination[page_size]", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-shipment",
+      "name": "Get AM Shipment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [360, 200],
+      "credentials": { "queryAuth": { "name": "Query Auth account" } }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// AM shipment -> canonical Shipment. Falls back to a realistic sample\n// (shape from ApparelMagic's own API docs) if AM has no real shipments yet\n// -- nothing's been picked/shipped in the test company so far.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst resp = $json.response || [];\nconst record = resp[0] || {\n  id: 'SAMPLE-1000', customer_id: '1', customer_name: 'Best Store Ever',\n  date: new Date().toISOString().slice(0,10), tracking_number: '1Z999AA10123456784', bill_of_lading: null,\n  qty: '45', qty_boxes: '2', weight: '12.50',\n  boxes: [\n    { box_number: '1', qty: '25', weight: '6.25', ucc: '00123456700300000229',\n      box_items: [ { product_id: '4', attr_2: 'BLK', size: 'M100', style_number: 'JEAN1', description: 'Classic Denim Jean', qty: '25' } ] },\n    { box_number: '2', qty: '20', weight: '6.25', ucc: '00123456700300000236',\n      box_items: [ { product_id: '4', attr_2: 'BLK', size: 'M100', style_number: 'JEAN1', description: 'Classic Denim Jean', qty: '20' } ] }\n  ]\n};\nconst isSample = resp.length === 0;\n\nconst shipment = {\n  shipmentId: record.id,\n  customerId: record.customer_id,\n  customerName: record.customer_name ?? null,\n  invoiceId: record.invoice_id || null,\n  date: record.date ?? null,\n  trackingNumber: record.tracking_number || null,\n  billOfLading: record.bill_of_lading || null,\n  qty: num(record.qty),\n  qtyBoxes: num(record.qty_boxes),\n  weight: num(record.weight),\n  cartons: (record.boxes || []).map((box) => ({\n    boxNumber: box.box_number,\n    ucc: box.ucc || null,\n    qty: num(box.qty),\n    weight: num(box.weight),\n    items: (box.box_items || []).map((item) => ({\n      productId: item.product_id, color: item.attr_2 || null, size: item.size || null,\n      styleNumber: item.style_number || null, description: item.description || null,\n      qty: num(item.qty), weight: num(item.weight),\n    })),\n  })),\n};\nreturn { json: { shipment, isSample } };"
+      },
+      "id": "parse-shipment",
+      "name": "Parse Shipment (or sample)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// canonical Shipment -> Orderful 856 message. Schema confirmed live\n// against Orderful's API -- see docs/orderful-outbound-schema-notes.md.\nconst { shipment } = $json;\nconst shipDate = shipment.date ? new Date(shipment.date) : new Date();\nconst dateStr = shipDate.toISOString().slice(0, 10).replace(/-/g, '');\nconst timeStr = shipDate.toISOString().slice(11, 16).replace(':', '');\n\nconst hlLoop = [\n  {\n    hierarchicalLevel: [{ hierarchicalLevelCode: 'S' }],\n    N1_loop: [{ partyIdentification: [{ entityIdentifierCode: 'ST', name: shipment.customerName ?? undefined, identificationCodeQualifier: '92', identificationCode: shipment.customerId }] }],\n    dateTimeReference: [{ dateTimeQualifier: '011', date: dateStr }],\n  },\n  { hierarchicalLevel: [{ hierarchicalLevelCode: 'O' }] },\n];\nfor (const carton of shipment.cartons) {\n  hlLoop.push({\n    hierarchicalLevel: [{ hierarchicalLevelCode: 'P' }],\n    ...(carton.ucc ? { marksAndNumbersInformation: [{ marksAndNumbersQualifier: 'GM', marksAndNumbers: carton.ucc }] } : {}),\n  });\n  for (const item of carton.items) {\n    hlLoop.push({\n      hierarchicalLevel: [{ hierarchicalLevelCode: 'I' }],\n      itemIdentification: [{ productServiceIDQualifier: 'VN', productServiceID: String(item.productId) }],\n      itemDetailShipment: [{ numberOfUnitsShipped: String(item.qty), unitOrBasisForMeasurementCode: 'EA' }],\n    });\n  }\n}\n\nconst message = {\n  transactionSets: [{\n    transactionSetHeader: [{ transactionSetIdentifierCode: '856', transactionSetControlNumber: '0001' }],\n    beginningSegmentForShipNotice: [{ transactionSetPurposeCode: '00', shipmentIdentification: String(shipment.shipmentId), date: dateStr, time: timeStr, hierarchicalStructureCode: '0001' }],\n    HL_loop: hlLoop,\n  }],\n};\nreturn { json: { orderfulPayload: { stream: 'TEST', type: { name: '856_SHIP_NOTICE_MANIFEST' }, sender: { isaId: 'ORDFLSCLFOOTW' }, receiver: { isaId: 'ODFLRETAILTEST' }, message } } };"
+      },
+      "id": "build-856",
+      "name": "Build 856 Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.orderful.com/v3/transactions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.orderfulPayload }}",
+        "options": {}
+      },
+      "id": "create-856",
+      "name": "Create 856 in Orderful (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 200],
+      "credentials": { "httpHeaderAuth": { "name": "Header Auth account" } }
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/invoices/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" },
+            { "name": "pagination[page_number]", "value": "1" },
+            { "name": "pagination[page_size]", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-invoice",
+      "name": "Get AM Invoice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [360, 420],
+      "credentials": { "queryAuth": { "name": "Query Auth account" } }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// AM invoice -> canonical Invoice. Falls back to a realistic sample\n// (shape from ApparelMagic's own API docs) if AM has no real invoices yet.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst resp = $json.response || [];\nconst record = resp[0] || {\n  invoice_id: 'SAMPLE-2000', order_id: null, customer_id: '1', customer_po: 'PO6979505951736416',\n  date: new Date().toISOString().slice(0,10), date_due: null, terms_id: null,\n  ship_to_name: 'Best Store Ever', address_1: '111 Main Street', address_2: null,\n  city: 'West Palm Beach', state: 'FL', postal_code: '33405', country: 'USA',\n  tracking_number: '1Z999AA10123456784', ship_via: null,\n  amount_subtotal: '899.55', pct_discount: '0', amount_discount: '0.00', tax_rate: '0', amount_tax: '0.00', amount_freight: '0.00', amount: '899.55',\n  invoice_items: [ { product_id: '4', sku_id: '4', attr_2: 'BLK', size: 'M100', style_number: 'JEAN1', description: 'Classic Denim Jean', qty: '45', unit_price: '19.99', amount: '899.55', is_taxable: '0' } ]\n};\nconst isSample = resp.length === 0;\n\nconst invoice = {\n  invoiceId: record.invoice_id, orderId: record.order_id || null, customerId: record.customer_id,\n  poNumber: record.customer_po || null, invoiceDate: record.date ?? null, dueDate: record.date_due || null, termsId: record.terms_id || null,\n  shipTo: { name: record.ship_to_name || null, address1: record.address_1 || null, address2: record.address_2 || null, city: record.city || null, state: record.state || null, zip: record.postal_code || null, country: record.country || null },\n  trackingNumber: record.tracking_number || null, shipVia: record.ship_via || null,\n  totals: { subtotal: num(record.amount_subtotal), discountPct: num(record.pct_discount), discountAmount: num(record.amount_discount), taxRate: num(record.tax_rate), taxAmount: num(record.amount_tax), freightAmount: num(record.amount_freight), total: num(record.amount) },\n  lines: (record.invoice_items || []).map((item) => ({ productId: item.product_id, skuId: item.sku_id, color: item.attr_2 || null, size: item.size || null, styleNumber: item.style_number || null, description: item.description || null, qty: num(item.qty), unitPrice: num(item.unit_price), amount: num(item.amount), isTaxable: item.is_taxable === '1' })),\n};\nreturn { json: { invoice, isSample } };"
+      },
+      "id": "parse-invoice",
+      "name": "Parse Invoice (or sample)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, 420]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// canonical Invoice -> Orderful 810 message. Schema confirmed live\n// against Orderful's API -- see docs/orderful-outbound-schema-notes.md.\nconst { invoice } = $json;\nconst dateStr = (invoice.invoiceDate || '').replace(/\\D/g, '').slice(0, 8) || null;\n\nconst message = {\n  transactionSets: [{\n    transactionSetHeader: [{ transactionSetIdentifierCode: '810', transactionSetControlNumber: '0001' }],\n    beginningSegmentForInvoice: [{ transactionSetPurposeCode: '00', invoiceNumber: String(invoice.invoiceId), date: dateStr }],\n    N1_loop: [\n      { partyIdentification: [{ entityIdentifierCode: 'ST', name: invoice.shipTo.name ?? undefined, identificationCodeQualifier: '92', identificationCode: invoice.customerId }] },\n      { partyIdentification: [{ entityIdentifierCode: 'BT', identificationCodeQualifier: '92', identificationCode: invoice.customerId }] },\n    ],\n    IT1_loop: invoice.lines.map((line, i) => ({\n      baselineItemDataInvoice: [{ assignedIdentification: String(i + 1), quantityInvoiced: String(line.qty), unitOrBasisForMeasurementCode: 'EA', unitPrice: String(line.unitPrice), productServiceIDQualifier: 'SK', productServiceID: String(line.skuId) }],\n    })),\n    totalMonetaryValueSummary: [{ amount: String(invoice.totals.total) }],\n  }],\n};\nreturn { json: { orderfulPayload: { stream: 'TEST', type: { name: '810_INVOICE' }, sender: { isaId: 'ORDFLSCLFOOTW' }, receiver: { isaId: 'ODFLRETAILTEST' }, message } } };"
+      },
+      "id": "build-810",
+      "name": "Build 810 Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.orderful.com/v3/transactions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.orderfulPayload }}",
+        "options": {}
+      },
+      "id": "create-810",
+      "name": "Create 810 in Orderful (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 420],
+      "credentials": { "httpHeaderAuth": { "name": "Header Auth account" } }
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": {
+      "main": [[
+        { "node": "Get AM Shipment", "type": "main", "index": 0 },
+        { "node": "Get AM Invoice", "type": "main", "index": 0 }
+      ]]
+    },
+    "Get AM Shipment": { "main": [[{ "node": "Parse Shipment (or sample)", "type": "main", "index": 0 }]] },
+    "Parse Shipment (or sample)": { "main": [[{ "node": "Build 856 Payload", "type": "main", "index": 0 }]] },
+    "Build 856 Payload": { "main": [[{ "node": "Create 856 in Orderful (POST)", "type": "main", "index": 0 }]] },
+    "Get AM Invoice": { "main": [[{ "node": "Parse Invoice (or sample)", "type": "main", "index": 0 }]] },
+    "Parse Invoice (or sample)": { "main": [[{ "node": "Build 810 Payload", "type": "main", "index": 0 }]] },
+    "Build 810 Payload": { "main": [[{ "node": "Create 810 in Orderful (POST)", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "Ports src/lib/{parseShipment,parseInvoice,build856,build810}.js into n8n Code nodes. Pulls a real AM shipment/invoice if one exists, otherwise falls back to a realistic sample (AM's test company has no shipments/invoices yet, only orders) so this is runnable today. Creates real TEST transactions in Orderful -- safe, TEST stream against the demo partner. After import, re-select credentials: Query Auth account (Get AM Shipment, Get AM Invoice), Header Auth account (Create 856, Create 810). Check the two Create nodes' output for the new transaction id, then view it in Orderful's Transactions list."
+  }
+}

@@ -1,0 +1,215 @@
+{
+  "name": "SCL: 850 → AM (full pipeline)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [160, 320]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/customers/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" },
+            { "name": "pagination[page_number]", "value": "1" },
+            { "name": "pagination[page_size]", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-customer",
+      "name": "Get AM Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [360, 320],
+      "credentials": { "queryAuth": { "name": "Query Auth account" } }
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/inventory/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" },
+            { "name": "pagination[page_number]", "value": "1" },
+            { "name": "pagination[page_size]", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-sku",
+      "name": "Get AM SKU",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 320],
+      "credentials": { "queryAuth": { "name": "Query Auth account" } }
+    },
+    {
+      "parameters": {
+        "url": "https://api.orderful.com/v3/transactions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "stream", "value": "TEST" } ] },
+        "options": {}
+      },
+      "id": "list-850",
+      "name": "List TEST Transactions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 320],
+      "credentials": { "httpHeaderAuth": { "name": "Header Auth account" } }
+    },
+    {
+      "parameters": { "fieldToSplitOut": "data", "options": {} },
+      "id": "split-data",
+      "name": "Split Into Transactions",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [960, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            { "leftValue": "={{ $json.type.name }}", "rightValue": "850_PURCHASE_ORDER", "operator": { "type": "string", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "only-850",
+      "name": "Only 850 POs",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1160, 320]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.message.href }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-message",
+      "name": "Get 850 Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 320],
+      "credentials": { "httpHeaderAuth": { "name": "Header Auth account" } }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse an Orderful 850 message into a clean canonical Order.\nconst first = (a) => (Array.isArray(a) && a.length ? a[0] : undefined);\nfunction isoDate(edi) { if (!edi || edi.length !== 8) return edi ?? null; return `${edi.slice(0,4)}-${edi.slice(4,6)}-${edi.slice(6,8)}`; }\nfunction productIds(item) { const ids = {}; for (const k of Object.keys(item)) { const m = k.match(/^productServiceIDQualifier(\\d*)$/); if (!m) continue; const q = item[k]; const v = item[`productServiceID${m[1]}`]; if (q && v) ids[q] = v; } return ids; }\nfunction party(loop, code) { const e = (loop ?? []).find((n) => first(n.partyIdentification)?.entityIdentifierCode === code); if (!e) return null; const id = first(e.partyIdentification); const loc = first(e.partyLocation); const geo = first(e.geographicLocation); return { name: id?.name ?? null, code: id?.identificationCode ?? null, address: loc?.addressInformation ?? null, city: geo?.cityName ?? null, state: geo?.stateOrProvinceCode ?? null, zip: geo?.postalCode ?? null, country: geo?.countryCode ?? null }; }\nconst DATE_Q = { '037': 'shipBy', '038': 'deliverBy', '002': 'requestedDelivery' };\nconst message = $json;\nconst set = first(message?.transactionSets);\nif (!set) throw new Error('No transaction set found in 850 message');\nconst beg = first(set.beginningSegmentForPurchaseOrder) ?? {};\nconst terms = first(set.termsOfSaleDeferredTermsOfSale);\nconst dates = {};\nfor (const dtm of set.dateTimeReference ?? []) { const f = DATE_Q[dtm.dateTimeQualifier]; if (f) dates[f] = isoDate(dtm.date); }\nconst lines = (set.PO1_loop ?? []).map((po1) => { const base = first(po1.baselineItemData) ?? {}; const ids = productIds(base); return { line: base.assignedIdentification ?? null, sku: ids.SK ?? null, upc: ids.UP ?? null, qty: base.quantity != null ? Number(base.quantity) : null, uom: base.unitOrBasisForMeasurementCode ?? null, unitPrice: base.unitPrice != null ? Number(base.unitPrice) : null }; });\nreturn { json: { poNumber: beg.purchaseOrderNumber ?? null, orderDate: isoDate(beg.date), terms: terms?.description ?? null, ...dates, shipTo: party(set.N1_loop, 'ST'), lines } };"
+      },
+      "id": "parse-850",
+      "name": "Parse 850 → Canonical Order",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 320]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Build the AM order payload + Supabase log fields.\n// AM's orders POST reads auth from the body, so time+token go in the payload.\nconst TOKEN = '197ec639dc944bc10509176dde7a8d72';\nconst order = $json;\nconst custResp = $('Get AM Customer').first().json;\nconst skuResp = $('Get AM SKU').first().json;\nconst customerId = custResp?.response?.[0]?.customer_id;\nconst skuId = skuResp?.response?.[0]?.sku_id;\nif (!customerId) throw new Error('No customer_id from AM (check Get AM Customer output).');\nif (!skuId) throw new Error('No sku_id from AM (check Get AM SKU output).');\n\nconst tx = $('Split Into Transactions').item.json;\nconst sender = tx.sender || {};\n\nconst items = (order.lines || []).map((l) => {\n  const item = { sku_id: String(skuId), qty: String(l.qty), is_taxable: '1' };\n  if (l.unitPrice != null) item.unit_price = String(l.unitPrice);\n  return item;\n});\nconst amPayload = {\n  time: String(Math.floor(Date.now() / 1000)),\n  token: TOKEN,\n  '0': { header: { customer_id: String(customerId), customer_po: order.poNumber }, items },\n};\n\nconst key = '850|' + (sender.isaId || 'UNKNOWN') + '|' + order.poNumber;\nreturn { json: {\n  poNumber: order.poNumber, dedupeKey: key, correlationId: key,\n  partner: sender.name || null, stream: tx.stream || 'TEST',\n  docType: '850', direction: 'inbound', status: 'processed', payloadRef: order.poNumber,\n  externalIds: JSON.stringify({ orderfulId: tx.id, poNumber: order.poNumber, businessNumber: tx.businessNumber, customerId, skuId }),\n  amPayload,\n} };"
+      },
+      "id": "build-row-payload",
+      "name": "Build Row + AM Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 320]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH ins AS (\n  INSERT INTO idempotency_keys (key) VALUES ('{{ $json.dedupeKey }}')\n  ON CONFLICT (key) DO NOTHING\n  RETURNING id\n),\nlogged AS (\n  INSERT INTO transactions (correlation_id, doc_type, direction, partner, stream, status, external_ids, payload_ref)\n  SELECT '{{ $json.correlationId }}', '{{ $json.docType }}', '{{ $json.direction }}', '{{ $json.partner }}', '{{ $json.stream }}', '{{ $json.status }}', '{{ $json.externalIds }}'::jsonb, '{{ $json.payloadRef }}'\n  WHERE EXISTS (SELECT 1 FROM ins)\n  RETURNING id\n)\nSELECT\n  '{{ $json.correlationId }}' AS correlation_id,\n  (SELECT id FROM ins) IS NOT NULL AS is_new,\n  (SELECT id FROM logged) AS transaction_id;",
+        "options": {}
+      },
+      "id": "claim-and-log",
+      "name": "Claim & Log (Supabase)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1960, 320],
+      "credentials": { "postgres": { "name": "Postgres account" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "leftValue": "={{ $json.is_new }}", "rightValue": "", "operator": { "type": "boolean", "operation": "true", "singleValue": true } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-new",
+      "name": "New PO?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2160, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/orders/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('Build Row + AM Payload').item.json.amPayload }}",
+        "options": {}
+      },
+      "id": "create-order",
+      "name": "Create AM Sales Order (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2380, 220],
+      "credentials": { "queryAuth": { "name": "Query Auth account" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE transactions\nSET status = 'sent'\nWHERE correlation_id = '{{ $('Build Row + AM Payload').item.json.correlationId }}'\nRETURNING id, correlation_id, status;",
+        "options": {}
+      },
+      "id": "mark-sent",
+      "name": "Mark Sent (Supabase)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [2600, 220],
+      "credentials": { "postgres": { "name": "Postgres account" } }
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": { "main": [[{ "node": "Get AM Customer", "type": "main", "index": 0 }]] },
+    "Get AM Customer": { "main": [[{ "node": "Get AM SKU", "type": "main", "index": 0 }]] },
+    "Get AM SKU": { "main": [[{ "node": "List TEST Transactions", "type": "main", "index": 0 }]] },
+    "List TEST Transactions": { "main": [[{ "node": "Split Into Transactions", "type": "main", "index": 0 }]] },
+    "Split Into Transactions": { "main": [[{ "node": "Only 850 POs", "type": "main", "index": 0 }]] },
+    "Only 850 POs": { "main": [[{ "node": "Get 850 Message", "type": "main", "index": 0 }]] },
+    "Get 850 Message": { "main": [[{ "node": "Parse 850 → Canonical Order", "type": "main", "index": 0 }]] },
+    "Parse 850 → Canonical Order": { "main": [[{ "node": "Build Row + AM Payload", "type": "main", "index": 0 }]] },
+    "Build Row + AM Payload": { "main": [[{ "node": "Claim & Log (Supabase)", "type": "main", "index": 0 }]] },
+    "Claim & Log (Supabase)": { "main": [[{ "node": "New PO?", "type": "main", "index": 0 }]] },
+    "New PO?": { "main": [[{ "node": "Create AM Sales Order (POST)", "type": "main", "index": 0 }], []] },
+    "Create AM Sales Order (POST)": { "main": [[{ "node": "Mark Sent (Supabase)", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "Clean full pipeline (no Limit node — processes all TEST 850 POs). Flow: fetch AM customer+sku -> list Orderful TEST 850s -> split -> filter 850 -> get message -> parse -> build AM payload (time+token in body) + log fields -> dedupe & log to Supabase -> New PO? gate -> create AM sales order -> mark sent. After import re-select credentials: Query Auth (Get AM Customer, Get AM SKU, Create AM Sales Order), Header Auth (List TEST Transactions, Get 850 Message), Postgres (Claim & Log, Mark Sent). AM is in TESTING MODE, safe."
+  }
+}
