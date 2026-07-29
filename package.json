@@ -2,7 +2,7 @@
   "name": "scl-edi-integration",
   "version": "0.1.0",
   "private": true,
-  "description": "EDI integration bridging Orderful (Mosaic) and ApparelMagic for SCL Footwear",
+  "description": "Reusable ERP <-> EDI integration platform (core/adapters/clients) -- current client: SCL Footwear (ApparelMagic + Orderful)",
   "type": "module",
   "scripts": {
     "migrate": "node scripts/migrate.js"

@@ -131,7 +131,7 @@ Key findings:
 
 ## What's implemented
 
-`src/lib/build856.js` and `src/lib/build810.js` use every segment above.
+`lib/build856.js` and `lib/build810.js` use every segment above.
 Genuinely open items are now about **content correctness for a specific
 retailer** (their implementation guide may require additional segments,
 different qualifiers, etc.), not about the base schema — that's normal and

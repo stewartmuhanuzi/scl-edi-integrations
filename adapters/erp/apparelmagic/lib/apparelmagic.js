@@ -2,7 +2,7 @@
 // query string parameters on every request, including GET — confirmed
 // against the live API; the docs' JSON-body example does not work in
 // practice, the app only reads $_GET.
-import { requireEnv } from './env.js';
+import { requireEnv } from '../../../../core/lib/env.js';
 
 // PHP parses nested query params via bracket notation, e.g.
 // pagination[page_size]=5 -> $_GET['pagination']['page_size']. Recurse
