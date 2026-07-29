@@ -1,5 +1,5 @@
 // Thin Orderful (Mosaic v3) API client. Reads config from env.
-import { requireEnv } from './env.js';
+import { requireEnv } from '../../../../core/lib/env.js';
 
 export function orderfulGet(path) {
   const { ORDERFUL_API_TOKEN, ORDERFUL_API_BASE } = requireEnv(

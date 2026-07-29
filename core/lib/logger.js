@@ -1,12 +1,11 @@
-// Minimal application logger. Writes structured JSON lines to logs/app.log and
-// mirrors a human-readable line to the console. One JSON object per line so the
-// log is easy to tail, grep, or ingest later.
+// Minimal application logger. Writes structured JSON lines to ./logs/app.log
+// (relative to process.cwd() — run from a client's directory to log there)
+// and mirrors a human-readable line to the console. One JSON object per line
+// so the log is easy to tail, grep, or ingest later.
 import { appendFileSync, mkdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const logDir = join(__dirname, '..', '..', 'logs');
+const logDir = join(process.cwd(), 'logs');
 const logFile = join(logDir, 'app.log');
 
 function write(level, message, data) {

@@ -2,7 +2,7 @@
 
 Working notes from the DCG email thread (Chi Cao, DCG EDI Programmer Analyst)
 and the actual specs/samples DCG sent. **All specs and sample files are saved
-in [docs/dcg-specs/](dcg-specs/)** — this doc is the synthesized summary;
+in [dcg-specs/](dcg-specs/)** — this doc is the synthesized summary;
 go to those files for exact field-level detail.
 
 ## Contacts
@@ -36,10 +36,10 @@ SCL likely doesn't need** (see Open Items #1).
 
 ### 888 vs 832 (item master) — **recommend 832**
 
-- `docs/dcg-specs/vida-mapping-888.txt` — VIDA's legacy 888 mapping. Uses
+- `dcg-specs/vida-mapping-888.txt` — VIDA's legacy 888 mapping. Uses
   non-standard segments (`G39`, `G69`, repeated `N9` blocks) and has fields
   even VIDA's own team marked `??` (uncertain) in their doc.
-- `docs/dcg-specs/dcg-832-spec-summary.md` — DCG's own authored 832 spec.
+- `dcg-specs/dcg-832-spec-summary.md` — DCG's own authored 832 spec.
   Clean, standard structure: `LIN → REF → PID → G55 → SLN` per item. Fully
   documented, no ambiguity.
 

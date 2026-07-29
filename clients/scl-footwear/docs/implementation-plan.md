@@ -36,7 +36,7 @@ phase.
 - [x] Local repo scaffolded with `.env` (secrets out of git)
 - [x] Create the **Supabase project** for this integration (control-plane tables live)
 - [x] ~~Create an AWS account/project for the SFTP bridge~~ — superseded, see Phase 2 (Orderful hosts the static-IP transport to DCG instead of AWS)
-- [x] DCG contact established (Chi Cao, DCG EDI team) — self-hosted SFTP confirmed, X12 flat files confirmed. Sample files (940/943/888/832) referenced as sent — **need actual files pulled into `docs/dcg-specs/`**. See [dcg-integration-notes.md](dcg-integration-notes.md).
+- [x] DCG contact established (Chi Cao, DCG EDI team) — self-hosted SFTP confirmed, X12 flat files confirmed. Sample files (940/943/888/832) referenced as sent — **need actual files pulled into `dcg-specs/`**. See [dcg-integration-notes.md](dcg-integration-notes.md).
 - [ ] Get DCG SFTP credentials (Chi Cao said sent — confirm received) into `.env`
 - [ ] Resolve two DCG decisions (see dcg-integration-notes.md): 888 vs 832, keep/drop `N9|GM` carton-scan segment on 943
 - [ ] Write down the **access matrix**: every system, who owns it, test vs prod, where the credential lives
@@ -95,7 +95,7 @@ self-hosted server, so DCG whitelists Orderful's IP, not ours) plus
 [dcg-integration-notes.md](dcg-integration-notes.md) and architecture.md §6
 (pending rewrite once this is proven).
 
-- [x] Get DCG's sample 940/943/888/832 files + field-mapping specs into the repo (`docs/dcg-specs/`)
+- [x] Get DCG's sample 940/943/888/832 files + field-mapping specs into the repo (`dcg-specs/`)
 - [ ] Confirm with Mike: use **832** (not 888) for item master — recommended, see dcg-integration-notes.md
 - [ ] Confirm with Mike: **drop `N9|GM`** carton-scan segment on the 943 — recommended, AM has no carton-level packing data
 - [ ] Confirm with Mike: which VIDA "order flavor" (Customer Order Direct-to-Store/DC vs Distribution/Rework) matches SCL's model — determines the 940's `W0506` transaction-type code
@@ -118,7 +118,7 @@ the static IP confirmed, and each hop is logged.
 The core money path. Depends on Phases 1 + 2.
 
 - [x] Pull real field shape from AM's `pick_tickets/` endpoint (source for 940 — a released order becomes a pick ticket)
-- [x] `src/lib/parsePickTicket.js` — AM pick ticket → canonical `PickTicket`
+- [x] `adapters/erp/apparelmagic/lib/parsePickTicket.js` — AM pick ticket → canonical `PickTicket`
 - [x] `n8n/flows/am-data-pulls.json` — pulls + parses AM pick tickets (also purchase orders, products/inventory) to canonical objects, sample-fallback if empty
 - [ ] **BLOCKED**: `build940.js` (canonical `PickTicket` → Orderful 940 message) — confirmed live that Orderful rejects any 940/943/888/944/945 POST with "relationship doesn't exist" against both the demo partner and DCG's ISA. This isn't a schema question; it needs the DCG Trading Partnership active with these transaction types enabled first. See dcg-integration-notes.md.
 - [ ] `AM Released Order → 940`: detect released orders → build canonical → Orderful transform → S3 → DCG
@@ -145,10 +145,10 @@ data from a live 945), but the **transform logic is being roughed in now**
 - [x] Discover Orderful's 856/810 JSON schema live (POST + read validation
       errors) — see [orderful-outbound-schema-notes.md](orderful-outbound-schema-notes.md)
       for exactly what's confirmed vs. still guessed
-- [x] `src/lib/parseShipment.js` — AM shipment → canonical `Shipment`
-- [x] `src/lib/parseInvoice.js` — AM invoice → canonical `Invoice`
-- [x] `src/lib/build856.js` — canonical `Shipment` → Orderful 856 message. **Full schema confirmed live**: header/BSN/HL hierarchy (S/O/P/I)/N1/carrier/dates/PO-ref/carton-marks(MAN)/item-id(LIN)/item-qty(SN1)
-- [x] `src/lib/build810.js` — canonical `Invoice` → Orderful 810 message. **Full schema confirmed live**: header/BIG/N1 (ST+BT)/line items (`baselineItemDataInvoice`)/total (`totalMonetaryValueSummary.amount`)
+- [x] `adapters/erp/apparelmagic/lib/parseShipment.js` — AM shipment → canonical `Shipment`
+- [x] `adapters/erp/apparelmagic/lib/parseInvoice.js` — AM invoice → canonical `Invoice`
+- [x] `adapters/edi/orderful/lib/build856.js` — canonical `Shipment` → Orderful 856 message. **Full schema confirmed live**: header/BSN/HL hierarchy (S/O/P/I)/N1/carrier/dates/PO-ref/carton-marks(MAN)/item-id(LIN)/item-qty(SN1)
+- [x] `adapters/edi/orderful/lib/build810.js` — canonical `Invoice` → Orderful 810 message. **Full schema confirmed live**: header/BIG/N1 (ST+BT)/line items (`baselineItemDataInvoice`)/total (`totalMonetaryValueSummary.amount`)
 - [x] Both builders' JSON structure validated by successfully creating real TEST transactions in Orderful (ids in orderful-outbound-schema-notes.md)
 - [ ] Remaining gap is guideline-level (retailer-specific requirements), not schema — revisit once mapping to a real retailer
 - [ ] Wire the real trigger: call `build856`/`build810` after a 945 posts to AM (blocked behind Phase 2/3)
@@ -167,8 +167,8 @@ the retailer.
 
 - [x] Pull real field shapes from AM's `products/` (header) + `inventory/` (per-SKU UPC/color/size) endpoints
 - [x] Pull real field shape from AM's `purchase_orders/` endpoint (source for 943 — incoming vendor stock DCG needs advance notice of)
-- [x] `src/lib/parseItem.js` — AM product + SKUs → canonical `Item` (888/832 source)
-- [x] `src/lib/parsePurchaseOrder.js` — AM purchase order → canonical `PurchaseOrder` (943 source)
+- [x] `adapters/erp/apparelmagic/lib/parseItem.js` — AM product + SKUs → canonical `Item` (888/832 source)
+- [x] `adapters/erp/apparelmagic/lib/parsePurchaseOrder.js` — AM purchase order → canonical `PurchaseOrder` (943 source)
 - [x] `n8n/flows/am-data-pulls.json` — pulls + parses AM purchase orders and products/inventory to canonical objects
 - [ ] **BLOCKED**: `build888.js`/`build832.js` and `build943.js` — same relationship-gate blocker as 940, see Phase 3 note and dcg-integration-notes.md. Also still pending Mike's 832-vs-888 decision once unblocked.
 - [ ] `AM Item → 888`: on new/changed item → Orderful → S3 → DCG (build the 888 PoC early — highest-risk transform)

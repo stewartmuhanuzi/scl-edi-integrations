@@ -1,16 +1,40 @@
-// Apply SQL migrations in supabase/migrations/ (sorted by filename) to the
-// Supabase Postgres database. Idempotent migrations can be re-run safely.
+// Apply SQL migrations in core/supabase/migrations/ (sorted by filename) to
+// a client's Supabase Postgres database. Idempotent migrations can be
+// re-run safely. The schema is universal (core/), but each client has their
+// own Supabase project/.env under clients/<name>/.
 //
 // Usage:
-//   npm install        # first time, to get the pg dependency
-//   npm run migrate
+//   npm install               # first time, to get the pg dependency
+//   npm run migrate                    # auto-detects the client if only one exists
+//   npm run migrate -- scl-footwear    # or name it explicitly
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import pg from 'pg';
-import { loadEnv, requireEnv } from '../src/lib/env.js';
+import { loadEnv, requireEnv } from '../core/lib/env.js';
 
-loadEnv();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(__dirname, '..');
+const clientsDir = join(repoRoot, 'clients');
+
+function resolveClientName() {
+  const arg = process.argv[2];
+  if (arg) return arg;
+  const entries = readdirSync(clientsDir, { withFileTypes: true }).filter((e) => e.isDirectory());
+  if (entries.length === 1) return entries[0].name;
+  console.error(
+    entries.length === 0
+      ? `No client folders found under ${clientsDir}`
+      : `Multiple client folders found — specify one: npm run migrate -- <client-name>\nFound: ${entries.map((e) => e.name).join(', ')}`,
+  );
+  process.exit(1);
+}
+
+const clientName = resolveClientName();
+const clientDir = join(clientsDir, clientName);
+loadEnv(join(clientDir, '.env'));
+
+console.log(`Client: ${clientName}`);
 
 // Use the shared pooler (IPv4) — works everywhere, including hosts without
 // IPv6. Falls back to the direct host if pooler vars aren't set.
@@ -22,8 +46,7 @@ if (!host || !user) {
   process.exit(1);
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const migrationsDir = join(__dirname, '..', 'supabase', 'migrations');
+const migrationsDir = join(repoRoot, 'core', 'supabase', 'migrations');
 const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
 
 if (!files.length) {

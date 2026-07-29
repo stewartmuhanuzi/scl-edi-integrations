@@ -1,15 +1,18 @@
 // Minimal zero-dependency .env loader. Merges KEY=VALUE lines into process.env
 // without overriding existing values.
+//
+// This lives in core/ so it carries no assumption about where a client's
+// .env actually is (each client's .env lives under clients/<name>/, not at
+// a fixed offset from this file). Pass an absolute path, or a path relative
+// to process.cwd() (e.g. run from inside clients/<name>/ and just use the
+// default '.env').
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = join(__dirname, '..', '..');
+import { isAbsolute, join } from 'node:path';
 
 export function loadEnv(file = '.env') {
+  const path = isAbsolute(file) ? file : join(process.cwd(), file);
   try {
-    const raw = readFileSync(join(projectRoot, file), 'utf8');
+    const raw = readFileSync(path, 'utf8');
     for (const line of raw.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) continue;
