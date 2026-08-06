@@ -1,0 +1,27 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "N8nS3DcgBridgeBucketAccess",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": "arn:aws:s3:::scl-dcg-sftp-bridge/*"
+    },
+    {
+      "Sid": "N8nS3DcgBridgeBucketList",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::scl-dcg-sftp-bridge"
+    },
+    {
+      "Sid": "N8nTransferFamilyDcgConnector",
+      "Effect": "Allow",
+      "Action": [
+        "transfer:StartFileTransfer",
+        "transfer:ListFileTransferResults",
+        "transfer:DescribeConnector"
+      ],
+      "Resource": "arn:aws:transfer:us-east-2:465573888733:connector/c-71cf9ddb758b4376b"
+    }
+  ]
+}

@@ -71,18 +71,29 @@ ApparelMagic**, because that account is production-only.
   trigger them?
 
 ### 3. DCG (3PL) — needed before any warehouse work
-- SFTP **host, test credentials, folder structure, and file naming**?
+- [x] **SFTP connection confirmed live (2026-07-29+)** — AWS Transfer Family
+  SFTP Connector `c-71cf9ddb758b4376b` (`sftp://20.14.2.67:22`, service-managed
+  egress) tests successfully from our side; Mike confirmed the same from
+  DCG's side ("that looks to be successfully connecting... let me know if you
+  have any issues getting connected or seeing the file directory").
+- Folder structure and file naming convention on DCG's server — still to
+  confirm/observe now that we can browse the directory.
 - Can they share **sample files** (888/940/943/944/945) and their
-  acknowledgement/rejection behavior?
-- Their **IP whitelist process** for our AWS static IP?
+  acknowledgement/rejection behavior? (Field-mapping samples already in
+  `dcg-specs/`; live ack/rejection behavior still unconfirmed.)
 
 ### 4. AWS
-- Whose **AWS account** do we use (SCL's, ours, new)? Who owns/pays for it?
+- [x] **AWS account confirmed**: "SCL Footwear" (`465573888733`), region
+  **US East (Ohio) / us-east-2**. Mike set this up; Stewart has IAM access
+  (needed the console region switched from a stale default of Stockholm to
+  see it).
 
-### 5. Orderful transformation
-- Confirm Orderful can **transform and emit the DCG flat files** (888/940/943)
-  and parse 944/945 — i.e. we lean on Orderful rather than hand-building EDI.
-  (This is the assumption the whole plan rests on.)
+### 5. DCG X12 (self-built, not Orderful)
+- **Decided (2026-07-29):** we **build/parse the DCG X12 ourselves** in the
+  `adapters/edi/x12-dcg/` codec and move it over AWS SFTP — Orderful is not on
+  this leg (it stays for the retailer 850/856/810). Confirm the X12 envelope
+  IDs DCG expects for SCL (ISA05/06 sender, ISA07/08 receiver) and any
+  required file-naming convention. See [dcg-sftp-design.md](dcg-sftp-design.md).
 
 ### 6. Master data ownership
 - Who owns the **retailer↔AM customer** and **SKU/UPC↔AM item** mappings, and

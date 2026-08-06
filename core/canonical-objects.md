@@ -58,20 +58,23 @@ Consumed by: `adapters/edi/orderful/lib/build810.js`
 }
 ```
 
-## `PickTicket` (ERP pick ticket → outbound 940, once unblocked)
+## `PickTicket` (ERP pick ticket → outbound 940)
 
-Produced by: `adapters/erp/apparelmagic/lib/parsePickTicket.js`
+Produced by: `adapters/erp/apparelmagic/lib/parsePickTicket.js` (call with the
+raw pick ticket record **and** a `{ [sku_id]: inventoryRecord }` lookup, same
+two-endpoint-combine pattern as `Item` — the pick ticket's own line items
+don't carry UPC or full color name; those live on `GET /api/json/inventory/`)
 
 ```js
 {
   pickTicketId, orderId, customerId, customerPo, warehouseId, date, dateDue,
   shipTo: { name, address1, address2, city, state, zip, country },
   shipVia, trackingNumber, qty, amount,
-  lines: [{ productId, skuId, color, size, styleNumber, description, qty, unitPrice, amount, isTaxable }],
+  lines: [{ productId, skuId, color, colorName, size, styleNumber, description, upc, qty, unitPrice, amount, isTaxable }],
 }
 ```
 
-## `PurchaseOrder` (ERP vendor PO → outbound 943, once unblocked)
+## `PurchaseOrder` (ERP vendor PO → outbound 943)
 
 Produced by: `adapters/erp/apparelmagic/lib/parsePurchaseOrder.js`
 
@@ -84,7 +87,7 @@ Produced by: `adapters/erp/apparelmagic/lib/parsePurchaseOrder.js`
 }
 ```
 
-## `Item` (ERP product + SKUs → outbound 888/832, once unblocked)
+## `Item` (ERP product + SKUs → outbound 888/832)
 
 Produced by: `adapters/erp/apparelmagic/lib/parseItem.js` (combines two ERP
 endpoints — product header + per-SKU inventory — into one canonical object;

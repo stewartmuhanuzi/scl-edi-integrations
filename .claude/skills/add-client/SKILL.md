@@ -5,11 +5,14 @@ description: Scaffold a new clients/<name>/ engagement folder (n8n workflows dir
 
 # Add a new client engagement
 
-This repo's reuse model: **a template duplicated per client**, not a shared
-multi-tenant runtime. Reuse `core/` as-is; reuse matching adapters under
-`adapters/` if this client uses a vendor already integrated (e.g.
-ApparelMagic or Orderful), otherwise scaffold a new one first with the
-`add-adapter` skill.
+This repo's reuse model: **a template duplicated per client**. Reuse `core/`
+as-is; reuse matching adapters under `adapters/` if this client uses a
+vendor already integrated (e.g. ApparelMagic or Orderful), otherwise
+scaffold a new one first with the `add-adapter` skill. Supabase and
+credentials stay fully isolated per client (own project, own `.env`) — the
+one shared piece is the n8n **account**, organized by a top-level folder per
+client (see `core/architecture.md` §3) rather than a separate account per
+client.
 
 ## 1. Create the directory tree
 
@@ -50,9 +53,14 @@ adapter fills ERP/EDI/3PL), the document-flow table for this client's actual
 transaction types, and any client-specific open questions. See
 `clients/scl-footwear/docs/architecture.md` as the reference shape.
 
-## 4. Build workflows with the `build-n8n-workflow` skill
+## 4. Create this client's n8n folder and build workflows
 
-Wire the chosen adapters together into this client's actual `n8n/flows/*`.
+In the shared n8n account, create a top-level folder named after this
+client, with the standard sub-structure (see `core/architecture.md` §3):
+`<3PL name>/`, `Retailer Templates/`, `Retailers/` (empty until a real
+retailer exists), `Tools/`. Then use the `build-n8n-workflow` skill to wire
+the chosen adapters together into this client's actual `n8n/flows/*`,
+importing each into the matching subfolder.
 
 ## Explicitly do NOT do (until there's a real second client to validate against)
 

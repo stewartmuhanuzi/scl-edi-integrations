@@ -17,7 +17,7 @@ deliberately.
 
 | Role | Filled by (this repo's adapters) | Owns | Must NOT own |
 |---|---|---|---|
-| **Brain** | n8n (client-specific workflows in `clients/<name>/n8n/`) | Orchestration, scheduling, routing, API calls, moving data between layers | Being a system of record; hand-rolled EDI mapping |
+| **Brain** | n8n — one shared account across clients, workflows organized in a top-level folder per client (see §3); repo copies live in `clients/<name>/n8n/` | Orchestration, scheduling, routing, API calls, moving data between layers | Being a system of record; hand-rolled EDI mapping |
 | **Translator** | An EDI adapter (`adapters/edi/<platform>/`) | All EDI/X12 ↔ JSON transformation | Operational order/inventory truth |
 | **Truth** | An ERP adapter (`adapters/erp/<erp>/`) | Orders, items, inventory, shipments, receipts, invoices | Transport/EDI concerns |
 | **Control plane** | Supabase (schema in `core/supabase/migrations/`) | Run logs, status, correlation IDs, idempotency keys, mapping tables | Business truth — it *mirrors* the ERP, never overrides it |
@@ -65,6 +65,25 @@ Compose small workflows; never build monoliths.
 
 `trigger → dedupe (idempotency) → fetch source → parse to canonical → map to
 target → write/send → log status → on error: route to errors table`.
+
+### Account organization — one shared n8n account, folder per client
+
+All clients share a single n8n account. Each client gets a **top-level
+folder** named after them, with the same sub-structure inside every time:
+
+```
+<Client Name>/
+  DCG/ (or the relevant 3PL/shared-transport name)   -- shared 3PL-facing flows, one per warehouse, not per retailer
+  Retailer Templates/                                 -- retailer-facing flows before any retailer-specific copy exists
+  Retailers/                                          -- per-retailer copies, one subfolder per retailer, once a real second retailer exists (see the add-retailer skill)
+  Tools/                                               -- manual dev/test utilities, never scheduled
+```
+
+This still keeps clients fully isolated from each other in practice — same
+separation as separate accounts would give, just inside one account instead
+of provisioning a new one per client. Reuse the same folder names across
+every client so the structure reads identically no matter which client
+folder you're in.
 
 ### Scheduling — flows run independently, not in coordinated lockstep
 

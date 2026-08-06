@@ -21,10 +21,11 @@ go to those files for exact field-level detail.
 
 ## Transport
 
-**X12 flat files over SFTP**, DCG self-hosts. Plan: Orderful connects to DCG
-(Orderful's static IP gets whitelisted by DCG, not ours) using Orderful's
-Convert API for JSON↔X12 transformation. See architecture.md §6 (pending
-rewrite once this is proven).
+**X12 flat files over SFTP**, DCG self-hosts. **Current plan (2026-07-29):**
+an **AWS Transfer Family SFTP Connector + S3** bridge provides the static IP
+DCG whitelists, and we **build/parse the X12 ourselves** — Orderful is not on
+this leg. (This reverses the earlier Orderful-hosted-SFTP + Convert plan.)
+Full design: **[dcg-sftp-design.md](dcg-sftp-design.md)**.
 
 ## What DCG actually sent — and what it tells us
 
@@ -34,7 +35,7 @@ Excel field-mapping guides plus real production sample files were provided.
 **Important: these specs describe VIDA's M3 ERP, which supports order types
 SCL likely doesn't need** (see Open Items #1).
 
-### 888 vs 832 (item master) — **recommend 832**
+### 888 vs 832 (item master) — **decided: 888, per Mike's direction (2026-07-30)**
 
 - `dcg-specs/vida-mapping-888.txt` — VIDA's legacy 888 mapping. Uses
   non-standard segments (`G39`, `G69`, repeated `N9` blocks) and has fields
@@ -43,9 +44,24 @@ SCL likely doesn't need** (see Open Items #1).
   Clean, standard structure: `LIN → REF → PID → G55 → SLN` per item. Fully
   documented, no ambiguity.
 
-**Recommendation: use 832.** Simpler mapping surface from Apparel Magic
-product data, no legacy VIDA cruft, and it's the format DCG actually wrote
-clean documentation for.
+**Earlier recommendation (superseded): use 832 over 888** — based purely on
+which spec file was cleaner to implement, not on which transaction type is
+the right standard fit. Checked against general X12 usage and that framing
+doesn't hold up: **888 (Item Maintenance) deliberately excludes pricing**
+(item attributes only — dimensions, UPC, description), while **832
+(Price/Sales Catalog) is a full catalog including pricing**, meant for
+publishing to retailers/distributors. A 3PL warehouse like DCG has no use for
+pricing — it needs item attributes for putaway/pick/pack. So 888 is actually
+the more correct standard fit for this leg, not the legacy one; the
+mapping-quality concern (VIDA cruft, uncertain fields) is real but separate,
+and worth raising with Chi Cao as its own question when building `build888.js`
+rather than a reason to switch transaction types.
+
+**Decided: proceed with 888**, per Mike's direction — he suggested it as the
+first real file test (a few items). Build `adapters/edi/x12-dcg/lib/build888.js`
+against `dcg-specs/vida-mapping-888.txt` and `sample-888.txt`, flagging any
+`??`-marked/uncertain field to Chi Cao as it comes up rather than blocking on
+it upfront.
 
 ### The `N9|GM` carton-scan question — **recommend drop it**
 
@@ -97,7 +113,14 @@ Walmart.com (future — going EDI in a few months), Super Shoes`. JC Penney
 "in the pipeline." Need `partner_map` entries once per-retailer specifics are
 confirmed (Aaron's original ask to Jenna, still open).
 
-## Confirmed blocker: 940/943/888/944/945 can't be created in Orderful yet
+## ~~Confirmed blocker: 940/943/888/944/945 can't be created in Orderful yet~~ (no longer applies)
+
+**Resolved by the 2026-07-29 pivot:** we no longer route the DCG leg through
+Orderful, so this relationship-gate blocker is moot — we build the X12
+ourselves and ship it over AWS SFTP (see
+[dcg-sftp-design.md](dcg-sftp-design.md)). 940/943/888 are now unblocked to
+build; the only external dependency left is DCG's SFTP credentials. The
+original finding is kept below for history.
 
 Tried live (2026-07-28), same technique used to discover the 856/810 schema:
 POSTing a `940_WAREHOUSE_SHIPPING_ORDER` transaction to Orderful returns
@@ -127,30 +150,38 @@ the Orderful-side builders (`build940.js` etc.) are waiting on DCG.
 1. **Which "order flavor" applies to SCL?** VIDA's 940/945 mapping has
    multiple order sub-types with different transaction-type codes
    (`W0506`): Customer Order variants (code `42`), Distribution Order (`10`),
-   Rework Order (`13`). SCL's retail dropship model is almost certainly
-   closest to "Customer Order - Direct to Store/DC" — **confirm with Mike**
-   before building the 940 generator, since the wrong sub-type pulls in
-   wrong fields/codes.
-2. **832 decision** — recommend 832 over 888 (above); confirm with Mike.
+   Rework Order (`13`). All three Customer Order sub-flavors (DS,
+   Direct-to-Store/DC, Mark-for-Store) share code `42` — only Distribution/
+   Rework differ — so `42` is a well-supported default and is what
+   `build940.js` uses (built 2026-08-01). SCL's retail dropship model is
+   almost certainly a Customer Order flavor, but this is still worth an
+   explicit **confirm with Mike/Chi Cao** rather than treating it as settled.
+2. ~~**832 decision**~~ — **resolved 2026-07-30: 888**, per Mike's direction (above).
 3. **`N9|GM` decision** — recommend dropping it on the 943 (above); confirm
    with Mike so we can tell DCG.
-4. **SFTP credentials** — confirm whether Chi Cao has sent them yet.
+4. ~~**SFTP credentials**~~ — **resolved**: connector tests successfully both
+   ends (2026-07-30), so credentials are live in Secrets Manager. Still worth
+   confirming DCG's exact folder structure/file-naming convention now that
+   the directory is browsable.
 5. **944/945 sample files** — not received yet (we have the field mapping
    guide but no real sample `.dat`); ask Chi Cao.
 6. **Per-retailer 943/940/945 specifics** — Aaron's original ask to Jenna,
    still open.
 
-## How this changes the architecture
+## Architecture for the DCG leg
 
-Mike's direction: **Orderful Convert API** for transformation, **Orderful
-SFTP channels** for transport — replaces the AWS Transfer Family plan in
-architecture.md §6. Rewrite that section once Convert is tested against a
-real sample (940 first — smallest, cleanest sample, and see next steps).
+**AWS Transfer Family SFTP Connector + S3** for transport, **self-built X12**
+for transformation — no Orderful on this leg. Full design (components, S3
+layout, outbound/inbound flows, the `adapters/edi/x12-dcg/` codec, control
+numbers, open items): **[dcg-sftp-design.md](dcg-sftp-design.md)**.
 
 ## Suggested next build step
 
-Now that we have real specs, the natural next slice (mirrors how `parse850.js`
-was built against a real Orderful 850): write a **940 canonical→X12 generator**
-first — it's the smallest/cleanest sample and closes the loop with what we
-already have working (AM → canonical `Order` → ... → DCG). Test its output
-against Orderful's Convert endpoint once that access is available.
+Mirrors how `parse850.js` was built against a real Orderful 850, but now
+against DCG's own samples in [dcg-specs/](dcg-specs/): write the **940
+canonical→X12 generator** first (`adapters/edi/x12-dcg/lib/build940.js` +
+`envelope.js`) — it's the smallest/cleanest sample and closes the loop with
+what already works (AM → canonical `PickTicket` → 940 X12 → S3 → DCG).
+Validate its output byte-against DCG's `sample-940.txt`, then wire the AWS
+push. Gated only on the 940 sub-type question (open item #1) and DCG's SFTP
+creds (#4) — not on any Orderful partnership.

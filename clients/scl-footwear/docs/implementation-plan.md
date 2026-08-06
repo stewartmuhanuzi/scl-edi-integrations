@@ -35,10 +35,11 @@ phase.
 - [x] Orderful *Retail Scenario Testing Demo* partner sending TEST 850s
 - [x] Local repo scaffolded with `.env` (secrets out of git)
 - [x] Create the **Supabase project** for this integration (control-plane tables live)
-- [x] ~~Create an AWS account/project for the SFTP bridge~~ — superseded, see Phase 2 (Orderful hosts the static-IP transport to DCG instead of AWS)
+- [x] **AWS account confirmed**: "SCL Footwear" (`465573888733`), region us-east-2 (Ohio) — reversed back to AWS for the DCG bridge (see Phase 2)
 - [x] DCG contact established (Chi Cao, DCG EDI team) — self-hosted SFTP confirmed, X12 flat files confirmed. Sample files (940/943/888/832) referenced as sent — **need actual files pulled into `dcg-specs/`**. See [dcg-integration-notes.md](dcg-integration-notes.md).
+- [x] AWS Transfer Family SFTP Connector confirmed live both ends (2026-07-30) — see Phase 2
 - [ ] Get DCG SFTP credentials (Chi Cao said sent — confirm received) into `.env`
-- [ ] Resolve two DCG decisions (see dcg-integration-notes.md): 888 vs 832, keep/drop `N9|GM` carton-scan segment on 943
+- [x] **Resolved**: 888 (not 832) for item master, per Mike's direction — see dcg-integration-notes.md. Still open: keep/drop `N9|GM` carton-scan segment on 943.
 - [ ] Write down the **access matrix**: every system, who owns it, test vs prod, where the credential lives
 - [ ] Confirm the two blocking Apparel Magic questions:
   - [ ] Which endpoint/method creates a **sales order**? (`orders/` POST shape)
@@ -86,30 +87,29 @@ safe to replay.
 
 ---
 
-## Phase 2 — Slice 2: Orderful ↔ DCG SFTP bridge smoke test
+## Phase 2 — Slice 2: AWS SFTP bridge to DCG smoke test
 
-**Superseded plan:** originally AWS Transfer Family; decided instead to let
-**Orderful** be the static-IP SFTP bridge to DCG (Orderful connects to DCG's
-self-hosted server, so DCG whitelists Orderful's IP, not ours) plus
-**Orderful's Convert API** for X12↔JSON transformation. See
-[dcg-integration-notes.md](dcg-integration-notes.md) and architecture.md §6
-(pending rewrite once this is proven).
+**Current plan (2026-07-29, reversed back to AWS):** an **AWS Transfer Family
+SFTP _Connector_ + S3** bridge provides the static IP DCG whitelists, and we
+**build/parse the X12 ourselves** (no Orderful on this leg). Full design:
+[dcg-sftp-design.md](dcg-sftp-design.md). The earlier "Orderful hosts the
+SFTP + Convert" plan is dropped — a side benefit is that the Orderful
+relationship gate no longer blocks 940/943/888.
 
 - [x] Get DCG's sample 940/943/888/832 files + field-mapping specs into the repo (`dcg-specs/`)
-- [ ] Confirm with Mike: use **832** (not 888) for item master — recommended, see dcg-integration-notes.md
+- [x] **Resolved with Mike (2026-07-30): use 888** (not 832) for item master — see dcg-integration-notes.md for the corrected reasoning
 - [ ] Confirm with Mike: **drop `N9|GM`** carton-scan segment on the 943 — recommended, AM has no carton-level packing data
-- [ ] Confirm with Mike: which VIDA "order flavor" (Customer Order Direct-to-Store/DC vs Distribution/Rework) matches SCL's model — determines the 940's `W0506` transaction-type code
-- [ ] Test Orderful's Convert endpoint against a real DCG sample file (start with 940 — smallest/cleanest) — confirm it produces a matching/valid output
-- [x] Set up the Trading Partnership with DCG in Orderful (EDI, DCG as Leader/guideline-owner, Chi Cao as partner contact) — trade request sent, status "Waiting on partner"
-- [ ] Configure **Outbound** channel (Orderful → DCG): carries 888/940/943
-- [ ] Configure **Inbound** channel (DCG → Orderful): carries 944/945
-- [ ] Get Orderful's static IP(s) from the channel setup; send to Mike → DCG for whitelisting
-- [ ] Outbound smoke test: one dummy/test file Orderful → DCG, confirm receipt
-- [ ] Inbound smoke test: confirm a DCG file lands and is retrievable via Orderful
-- [ ] Add `files` table writes so every transfer is tracked in Supabase
+- [ ] Confirm with Mike/Chi Cao: `build940.js` defaults to transaction-type code `42` (Customer Order) — a well-supported default since all Customer Order sub-flavors share that code in VIDA's mapping (only Distribution `10` / Rework `13` differ), but not yet explicitly confirmed as correct for SCL's model
+- [ ] Get DCG's SFTP host/port/creds + read/write directories from Chi Cao; confirm the X12 envelope IDs DCG expects for SCL
+- [x] AWS account, S3 bucket, Transfer Family SFTP Connector to DCG confirmed live both ends (2026-07-30) — connector `c-71cf9ddb758b4376b`, `sftp://20.14.2.67:22`, account "SCL Footwear" (465573888733), us-east-2
+- [x] Connector's static IP whitelisted by DCG — confirmed working from both sides
+- [x] **Outbound smoke test DONE (2026-08-01)**: `888-outbound.json` ran end-to-end for real — 3 real AM products → X12 built → S3 `outbound/pending/` → `StartFileTransfer` → DCG. Every node green through Mark Sent. TEST stream, but a genuinely delivered file, not just an internal dry run.
+- [ ] Inbound smoke test: `StartFileTransfer` RetrieveFilePaths pulls a DCG file into S3, confirm n8n reads it
+- [ ] Add the Supabase `files` table + ISA13 control-number sequence (migration `0002`) and write to them on every transfer
 
-**Done when:** a file round-trips n8n → Orderful → DCG → Orderful → n8n with
-the static IP confirmed, and each hop is logged.
+**Done when:** a file round-trips n8n → S3 → AWS SFTP → DCG → S3 → n8n with
+the static IP confirmed, and each hop is logged. **Outbound half done
+(2026-08-01)**; inbound (DCG → S3 → n8n) still open — needed for 944/945.
 
 ---
 
@@ -118,12 +118,13 @@ the static IP confirmed, and each hop is logged.
 The core money path. Depends on Phases 1 + 2.
 
 - [x] Pull real field shape from AM's `pick_tickets/` endpoint (source for 940 — a released order becomes a pick ticket)
-- [x] `adapters/erp/apparelmagic/lib/parsePickTicket.js` — AM pick ticket → canonical `PickTicket`
+- [x] `adapters/erp/apparelmagic/lib/parsePickTicket.js` — AM pick ticket → canonical `PickTicket`. Updated 2026-08-02 (per Mike's note that Inventory, not just Products, is needed for real SKU data) to take a `skusById` lookup from `GET /api/json/inventory/` and enrich each line with UPC + full color name — pick_ticket_items alone doesn't carry either, same combine pattern already used by `parseItem.js`.
 - [x] `n8n/flows/am-data-pulls.json` — pulls + parses AM pick tickets (also purchase orders, products/inventory) to canonical objects, sample-fallback if empty
-- [ ] **BLOCKED**: `build940.js` (canonical `PickTicket` → Orderful 940 message) — confirmed live that Orderful rejects any 940/943/888/944/945 POST with "relationship doesn't exist" against both the demo partner and DCG's ISA. This isn't a schema question; it needs the DCG Trading Partnership active with these transaction types enabled first. See dcg-integration-notes.md.
-- [ ] `AM Released Order → 940`: detect released orders → build canonical → Orderful transform → S3 → DCG
-- [ ] Confirm Orderful emits a DCG-loadable 940 flat file (validate the transform output early)
-- [ ] `945 → AM Shipment`: cron pull from DCG → Orderful parse → canonical `Shipment` → AM shipment writeback
+- [x] `adapters/edi/x12-dcg/lib/build940.js` — canonical `PickTicket` → 940 X12, built 2026-08-01 per Mike's go-ahead. Structurally verified against `sample-940.txt`; several fields deliberately omitted (no canonical source) — see `schema-notes.md`. 940 sub-type resolved: `42` (Customer Order) is well-supported, not a guess — all Customer Order flavors share that code in VIDA's mapping.
+- [x] `n8n/flows/940-outbound.json` — pulls real AM pick tickets (sample-fallback if empty), a generic AM customer lookup, and AM Inventory (for the UPC/color-name enrichment above), builds one 940 X12 **per pick ticket** (not batched, unlike 888), dedupes/logs/uploads/pushes same pattern as `888-outbound.json`. Built and structurally verified 2026-08-01/02; not yet run against real DCG.
+- [ ] Run the 940 flow's first live TEST-stream send to DCG and confirm receipt with Mike/Chi Cao
+- [ ] `N1|BT` customer name currently comes from an unfiltered AM customer lookup (page_size 1, not matched to the pick ticket's actual `customerId`) — AM's customers/ endpoint filter-by-ID capability hasn't been confirmed; fix once confirmed
+- [ ] `945 → AM Shipment`: cron `RetrieveFilePaths` from DCG → `parse945` X12 → canonical `Shipment` → AM shipment writeback
 - [ ] Tie 945 back to its originating 940 via correlation ID (depositor order number)
 - [ ] Idempotent writeback: replaying a 945 doesn't double-post the shipment
 - [ ] Verify end-to-end with one order: released → 940 sent → 945 returned → AM updated
@@ -143,13 +144,13 @@ data from a live 945), but the **transform logic is being roughed in now**
 - [x] Pull real field shapes from AM's `shipments/` (boxes/box_items/UCC) and
       `invoices/` (invoice_items) endpoints
 - [x] Discover Orderful's 856/810 JSON schema live (POST + read validation
-      errors) — see [orderful-outbound-schema-notes.md](orderful-outbound-schema-notes.md)
+      errors) — see [adapters/edi/orderful/schema-notes.md](../../../adapters/edi/orderful/schema-notes.md)
       for exactly what's confirmed vs. still guessed
 - [x] `adapters/erp/apparelmagic/lib/parseShipment.js` — AM shipment → canonical `Shipment`
 - [x] `adapters/erp/apparelmagic/lib/parseInvoice.js` — AM invoice → canonical `Invoice`
 - [x] `adapters/edi/orderful/lib/build856.js` — canonical `Shipment` → Orderful 856 message. **Full schema confirmed live**: header/BSN/HL hierarchy (S/O/P/I)/N1/carrier/dates/PO-ref/carton-marks(MAN)/item-id(LIN)/item-qty(SN1)
 - [x] `adapters/edi/orderful/lib/build810.js` — canonical `Invoice` → Orderful 810 message. **Full schema confirmed live**: header/BIG/N1 (ST+BT)/line items (`baselineItemDataInvoice`)/total (`totalMonetaryValueSummary.amount`)
-- [x] Both builders' JSON structure validated by successfully creating real TEST transactions in Orderful (ids in orderful-outbound-schema-notes.md)
+- [x] Both builders' JSON structure validated by successfully creating real TEST transactions in Orderful (ids in adapters/edi/orderful/schema-notes.md)
 - [ ] Remaining gap is guideline-level (retailer-specific requirements), not schema — revisit once mapping to a real retailer
 - [ ] Wire the real trigger: call `build856`/`build810` after a 945 posts to AM (blocked behind Phase 2/3)
 - [ ] `AM Shipment → 856 ASN`: after 945 posts, build canonical `ASN` → Orderful → retailer
@@ -167,14 +168,20 @@ the retailer.
 
 - [x] Pull real field shapes from AM's `products/` (header) + `inventory/` (per-SKU UPC/color/size) endpoints
 - [x] Pull real field shape from AM's `purchase_orders/` endpoint (source for 943 — incoming vendor stock DCG needs advance notice of)
-- [x] `adapters/erp/apparelmagic/lib/parseItem.js` — AM product + SKUs → canonical `Item` (888/832 source)
+- [x] `adapters/erp/apparelmagic/lib/parseItem.js` — AM product + SKUs → canonical `Item` (888 source)
 - [x] `adapters/erp/apparelmagic/lib/parsePurchaseOrder.js` — AM purchase order → canonical `PurchaseOrder` (943 source)
 - [x] `n8n/flows/am-data-pulls.json` — pulls + parses AM purchase orders and products/inventory to canonical objects
-- [ ] **BLOCKED**: `build888.js`/`build832.js` and `build943.js` — same relationship-gate blocker as 940, see Phase 3 note and dcg-integration-notes.md. Also still pending Mike's 832-vs-888 decision once unblocked.
-- [ ] `AM Item → 888`: on new/changed item → Orderful → S3 → DCG (build the 888 PoC early — highest-risk transform)
-- [ ] Enforce sequencing: 888 accepted before the item can appear on a 940/943
-- [ ] `AM Inbound Transfer → 943`: expected receipt → Orderful → S3 → DCG
-- [ ] `944 → AM Receipt`: cron pull → Orderful parse → AM receipt/inventory writeback
+- [x] `adapters/edi/x12-dcg/lib/{envelope,build888}.js` — canonical `Item` → 888 X12, verified byte-for-byte against `sample-888.txt`. Several fields (vendor name, vendor item number, division code, case-pack handling) are documented assumptions — see `adapters/edi/x12-dcg/schema-notes.md` — confirm with Chi Cao before a live send.
+- [x] `n8n/flows/888-outbound.json` — `AM Item → 888`: pulls real AM products/SKUs → builds 888 X12 → dedupes/logs to Supabase → `S3 Put` → `StartFileTransfer` → DCG. Ready to run in TEST mode.
+- [x] S3 bucket confirmed: `scl-dcg-sftp-bridge` (us-east-2, created 2026-07-09) — already wired into the flow
+- [x] IAM policy written: `docs/n8n-aws-iam-policy.json` (verified action names + connector ARN format against AWS's real API docs) — least-privilege S3 PutObject/GetObject/ListBucket on `scl-dcg-sftp-bridge` + transfer:StartFileTransfer/ListFileTransferResults/DescribeConnector on the connector
+- [ ] Create the IAM user in the console, attach the policy, generate the access key, and create the "AWS account" credential in n8n (steps in `dcg-sftp-design.md`)
+- [ ] Resolve the remaining schema-notes.md open questions with Chi Cao (vendor name, ISA sender/receiver IDs, division code) before flipping to a real (non-test) send
+- [ ] Run the 888 flow's first live TEST-stream send to DCG and confirm receipt with Mike/Chi Cao
+- [ ] Then `build943.js`
+- [ ] Enforce sequencing: item master accepted before the item can appear on a 940/943
+- [ ] `AM Inbound Transfer → 943`: expected receipt → build X12 → `S3 Put` → `StartFileTransfer` → DCG
+- [ ] `944 → AM Receipt`: cron `RetrieveFilePaths` → `parse944` X12 → AM receipt/inventory writeback
 - [ ] Tie 944 back to its originating 943 via correlation ID
 - [ ] Handle receiving exceptions: short, over, damaged, duplicate
 

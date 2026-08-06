@@ -1,0 +1,383 @@
+{
+  "name": "SCL: 888 Item Maintenance (AM → X12 → DCG)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/products/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-products",
+      "name": "Get AM Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        300
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/inventory/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-inventory",
+      "name": "Get AM Inventory (SKUs)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        300
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Combine AM products (header) + inventory (per-SKU UPC/color/size) into\n// canonical Item[] -- same logic as am-data-pulls.json's \"Combine & Parse\n// Items\" node. Keep these two in sync if adapters/erp/apparelmagic/lib/parseItem.js changes.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst products = $('Get AM Products').first().json.response || [];\nconst skus = $('Get AM Inventory (SKUs)').first().json.response || [];\nconst skusByProduct = {};\nfor (const sku of skus) {\n  (skusByProduct[sku.product_id] ??= []).push(sku);\n}\n\nreturn products.map((product) => ({ json: { item: {\n  productId: product.product_id, styleNumber: product.style_number, description: product.description ?? null,\n  category: product.category || null, group: product.group || null, origin: product.origin || null, content: product.content || null,\n  weight: num(product.weight), boxSize: product.box_size || null, isTaxable: product.is_taxable === '1',\n  cost: num(product.cost), price: num(product.price),\n  skus: (skusByProduct[product.product_id] || []).map((sku) => ({\n    skuId: sku.sku_id, color: sku.attr_2 || null, colorName: sku.attr_2_name || null, size: sku.size || null,\n    upc: sku.upc_display || sku.upc_11 || null, price: num(sku.price), cost: num(sku.cost), weight: num(sku.weight), active: sku.active === '1',\n  })),\n} } }));"
+      },
+      "id": "parse-items",
+      "name": "Combine & Parse Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Ports adapters/edi/x12-dcg/lib/{envelope,build888}.js into a single n8n\n// Code node (Code nodes can't import repo files). Keep in sync with those\n// two files if the builder logic changes -- see adapters/edi/x12-dcg/schema-notes.md\n// for the full field mapping and every open question flagged below.\nconst ELEMENT_SEP = '|';\nconst SEGMENT_TERM = '\\n';\nfunction segment(...elements) { return elements.map((e) => (e ?? '')).join(ELEMENT_SEP); }\nfunction pad15(value) { return String(value ?? '').padEnd(15, ' ').slice(0, 15); }\n\nfunction buildEnvelope(cfg, bodySegments) {\n  const {\n    senderQualifier = 'ZZ', senderId, receiverQualifier = 'ZZ', receiverId,\n    interchangeControlNumber, groupControlNumber, transactionSetControlNumber = '0001',\n    functionalIdentifierCode, transactionSetIdentifierCode,\n    responsibleAgencyCode = 'X', versionReleaseIndustryCode = '004010',\n    interchangeControlVersion = '00401', usageIndicator = 'T', date = new Date(),\n  } = cfg;\n  const yy = String(date.getUTCFullYear()).slice(2);\n  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');\n  const dd = String(date.getUTCDate()).padStart(2, '0');\n  const hh = String(date.getUTCHours()).padStart(2, '0');\n  const min = String(date.getUTCMinutes()).padStart(2, '0');\n  const isaDate = `${yy}${mm}${dd}`;\n  const gsDate = `${date.getUTCFullYear()}${mm}${dd}`;\n  const time = `${hh}${min}`;\n  const isaControl = String(interchangeControlNumber).padStart(9, '0');\n  const isa = segment('ISA', '00', pad15(''), '00', pad15(''), senderQualifier, pad15(senderId), receiverQualifier, pad15(receiverId), isaDate, time, 'U', interchangeControlVersion, isaControl, '0', usageIndicator, '>');\n  const gs = segment('GS', functionalIdentifierCode, senderId, receiverId, gsDate, time, String(groupControlNumber), responsibleAgencyCode, versionReleaseIndustryCode);\n  const st = segment('ST', transactionSetIdentifierCode, transactionSetControlNumber);\n  const se = segment('SE', String(bodySegments.length + 2), transactionSetControlNumber);\n  const ge = segment('GE', '1', String(groupControlNumber));\n  const iea = segment('IEA', '1', isaControl);\n  return [isa, gs, st, ...bodySegments, se, ge, iea].join(SEGMENT_TERM) + SEGMENT_TERM;\n}\n\nconst num888 = (v) => (v == null ? '0.000' : Number(v).toFixed(3));\nfunction vendorItemNumber(item, sku) { return `${item.styleNumber ?? ''}${sku.color ?? ''}${sku.size ?? ''}`.toUpperCase().replace(/\\s+/g, ''); }\nfunction buildN1({ vendorName, divisionCode }) {\n  const elements = ['N1', 'VN', vendorName];\n  if (divisionCode) elements.push('92', divisionCode);\n  return segment(...elements);\n}\nfunction buildG62(date) {\n  const ccyymmdd = `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(date.getUTCDate()).padStart(2, '0')}`;\n  return segment('G62', '7', ccyymmdd);\n}\nfunction buildG53(maintenanceType) { return segment('G53', maintenanceType); }\nfunction buildG39(item, sku) {\n  return segment('G39', sku.upc ?? '', 'VN', vendorItemNumber(item, sku), '', num888(sku.weight ?? item.weight), 'G', 'L', '0.000', 'IN', '0.000', 'IN', '0.000', 'IN', '1.000', 'CI', '', '1', '1', 'EA', '', '', '', 'DI', item.group || item.category || '');\n}\nfunction buildG69(item) { return segment('G69', item.description ?? ''); }\nfunction buildN9Block(item, sku, { divisionCode }) {\n  const blocks = [segment('N9', 'BO', sku.color ?? '')];\n  if (divisionCode) blocks.push(segment('N9', 'DV', divisionCode));\n  blocks.push(segment('N9', 'IT', item.styleNumber ?? ''));\n  blocks.push(segment('N9', 'IZ', sku.size ?? ''));\n  if (sku.color) blocks.push(segment('N9', 'VC', sku.color, sku.colorName ?? ''));\n  return blocks;\n}\nfunction build888(items, options = {}) {\n  const { vendorName, divisionCode, maintenanceType = '003', date = new Date(), envelope = {} } = options;\n  const body = [buildN1({ vendorName, divisionCode }), buildG62(date), buildG53(maintenanceType)];\n  for (const item of items) {\n    for (const sku of item.skus ?? []) {\n      body.push(buildG39(item, sku));\n      body.push(buildG69(item));\n      body.push(...buildN9Block(item, sku, { divisionCode }));\n    }\n  }\n  return buildEnvelope({ functionalIdentifierCode: 'QG', transactionSetIdentifierCode: '888', ...envelope, date }, body);\n}\n\nconst items = $input.all().map((i) => i.json.item);\nconst now = new Date();\n// Timestamp-derived control number until the Supabase control-number\n// sequence exists (migration 0002, not yet written -- see dcg-sftp-design.md).\nconst controlNumber = Number(String(Date.now()).slice(-9));\n\nconst x12 = build888(items, {\n  vendorName: 'SCL FOOTWEAR', // TBD -- confirm exact expected value with Chi Cao, see schema-notes.md\n  date: now,\n  envelope: {\n    senderId: 'SCLFOOTWEAR',  // TBD -- confirm exact ISA sender ID DCG expects for SCL\n    receiverId: 'DCG',        // TBD -- confirm exact ISA receiver ID DCG expects for SCL\n    interchangeControlNumber: controlNumber,\n    groupControlNumber: controlNumber,\n    usageIndicator: 'T', // TEST -- flip to 'P' only once DCG confirms this is a real send\n  },\n});\n\nconst fileName = `SCL_888_${now.toISOString().replace(/[:.]/g, '-')}.txt`;\nconst productIds = items.map((i) => i.productId).join(',');\nconst dedupeKey = `888|${now.toISOString().slice(0, 10)}|${productIds}`;\n\nreturn [{\n  json: {\n    fileName, dedupeKey, correlationId: dedupeKey,\n    itemCount: items.length, productIds,\n    docType: '888', direction: 'outbound', status: 'created',\n    externalIds: JSON.stringify({ controlNumber, productIds: items.map((i) => i.productId) }),\n  },\n  binary: {\n    data: { data: Buffer.from(x12, 'utf-8').toString('base64'), mimeType: 'text/plain', fileName },\n  },\n}];"
+      },
+      "id": "build-888",
+      "name": "Build 888 X12",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH ins AS (\n  INSERT INTO idempotency_keys (key) VALUES ('{{ $json.dedupeKey }}')\n  ON CONFLICT (key) DO NOTHING\n  RETURNING id\n),\nlogged AS (\n  INSERT INTO transactions (correlation_id, doc_type, direction, partner, stream, status, external_ids, payload_ref)\n  SELECT '{{ $json.correlationId }}', '{{ $json.docType }}', '{{ $json.direction }}', 'DCG', 'TEST', '{{ $json.status }}', '{{ $json.externalIds }}'::jsonb, '{{ $json.fileName }}'\n  WHERE EXISTS (SELECT 1 FROM ins)\n  RETURNING id\n)\nSELECT\n  '{{ $json.correlationId }}' AS correlation_id,\n  (SELECT id FROM ins) IS NOT NULL AS is_new,\n  (SELECT id FROM logged) AS transaction_id;",
+        "options": {}
+      },
+      "id": "claim-and-log",
+      "name": "Claim & Log (Supabase)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1160,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_new }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-new",
+      "name": "New File?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Postgres nodes don't reliably pass through binary data from their input\n// item, so pull the X12 file's binary back from Build 888 X12 by name, and\n// merge in the correlation_id Claim & Log just produced (needed by Mark Sent).\nconst meta = $('Build 888 X12').item.json;\nconst claim = $json;\nreturn [{\n  json: { ...meta, correlationId: claim.correlation_id },\n  binary: $('Build 888 X12').item.binary,\n}];"
+      },
+      "id": "reattach-file",
+      "name": "Reattach File + Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "scl-dcg-sftp-bridge",
+        "fileName": "=outbound/pending/{{ $json.fileName }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {}
+      },
+      "id": "s3-upload",
+      "name": "Upload to S3 (outbound/pending)",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "aws": {
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://transfer.us-east-2.amazonaws.com/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Amz-Target",
+              "value": "TransferService.StartFileTransfer"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-amz-json-1.1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ConnectorId: 'c-71cf9ddb758b4376b', SendFilePaths: ['/scl-dcg-sftp-bridge/outbound/pending/' + $json.fileName], RemoteDirectoryPath: '/From_SCL_TEST' }) }}",
+        "options": {}
+      },
+      "id": "start-file-transfer",
+      "name": "StartFileTransfer (DCG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        300
+      ],
+      "credentials": {
+        "aws": {
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE transactions\nSET status = 'sent'\nWHERE correlation_id = '{{ $('Reattach File + Metadata').item.json.correlationId }}'\nRETURNING id, correlation_id, status;",
+        "options": {}
+      },
+      "id": "mark-sent",
+      "name": "Mark Sent (Supabase)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2160,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": {
+      "main": [
+        [
+          {
+            "node": "Get AM Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Products": {
+      "main": [
+        [
+          {
+            "node": "Get AM Inventory (SKUs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Inventory (SKUs)": {
+      "main": [
+        [
+          {
+            "node": "Combine & Parse Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine & Parse Items": {
+      "main": [
+        [
+          {
+            "node": "Build 888 X12",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build 888 X12": {
+      "main": [
+        [
+          {
+            "node": "Claim & Log (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim & Log (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "New File?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New File?": {
+      "main": [
+        [
+          {
+            "node": "Reattach File + Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Reattach File + Metadata": {
+      "main": [
+        [
+          {
+            "node": "Upload to S3 (outbound/pending)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to S3 (outbound/pending)": {
+      "main": [
+        [
+          {
+            "node": "StartFileTransfer (DCG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "StartFileTransfer (DCG)": {
+      "main": [
+        [
+          {
+            "node": "Mark Sent (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "Pulls 3 real AM products + their SKUs, ports adapters/edi/x12-dcg/lib/{envelope,build888}.js into the 'Build 888 X12' Code node (Code nodes can't import repo files -- keep in sync manually), dedupes/logs to Supabase, uploads the X12 file to S3, then pushes it to DCG via the Transfer Family Connector's StartFileTransfer API. TBD/unconfirmed before a real send (see adapters/edi/x12-dcg/schema-notes.md): vendor name (N1), ISA sender/receiver IDs, division code, vendor item number scheme -- all called out inline in 'Build 888 X12'. S3 bucket 'scl-dcg-sftp-bridge' (us-east-2) is confirmed real, already created. Still TBD: whether DCG needs a specific RemoteDirectoryPath in the StartFileTransfer body (currently omitted, so the connector uses its configured default). After import, re-select credentials: Query Auth account (Get AM Products, Get AM Inventory), Postgres account (Claim & Log, Mark Sent), AWS account (Upload to S3, StartFileTransfer -- this must be an n8n AWS credential with permissions for s3:PutObject on the bucket and transfer:StartFileTransfer/transfer:ListFileTransferResults on the connector). Uses usageIndicator 'T' (test) and stream 'TEST' throughout -- flip to 'P'/'LIVE' only once DCG confirms this is a real send, and only after resolving the TBD fields above."
+  }
+}
