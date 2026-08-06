@@ -9,7 +9,7 @@ Read that first — this doc only covers what's specific to SCL.
 |---|---|---|
 | ERP / Truth | ApparelMagic | `adapters/erp/apparelmagic/` |
 | EDI / Translator | Orderful (Mosaic v3) | `adapters/edi/orderful/` |
-| 3PL | DCG Fulfillment | No adapter (SFTP relationship via Orderful — see below) |
+| 3PL | DCG Fulfillment | `adapters/edi/x12-dcg/` (planned) — self-built X12 over AWS SFTP, see below |
 
 Current build status and slice plan: [implementation-plan.md](implementation-plan.md).
 DCG-specific findings, contacts, and open decisions:
@@ -22,35 +22,37 @@ DCG-specific findings, contacts, and open decisions:
 | Doc | Name | Path | Trigger |
 |---|---|---|---|
 | 850 | Purchase Order | Retailer → Orderful → AM sales order | Retailer submits PO |
-| 888 | Item Maintenance | AM → Orderful → DCG | New/changed item |
-| 940 | Warehouse Shipping Order | AM → Orderful → DCG | Order released for fulfillment |
-| 943 | Stock Transfer Shipment Advice | AM → Orderful → DCG | Expected inbound receipt |
+| 888/832 | Item Maintenance | AM → X12 → AWS SFTP → DCG | New/changed item |
+| 940 | Warehouse Shipping Order | AM → X12 → AWS SFTP → DCG | Order released for fulfillment |
+| 943 | Stock Transfer Shipment Advice | AM → X12 → AWS SFTP → DCG | Expected inbound receipt |
 
 ### Outbound — warehouse → retailer
 
 | Doc | Name | Path | Trigger |
 |---|---|---|---|
-| 944 | Stock Transfer Receipt Advice | DCG → Orderful → AM | DCG receives goods |
-| 945 | Warehouse Shipping Advice | DCG → Orderful → AM | DCG ships an order |
+| 944 | Stock Transfer Receipt Advice | DCG → AWS SFTP → X12 → AM | DCG receives goods |
+| 945 | Warehouse Shipping Advice | DCG → AWS SFTP → X12 → AM | DCG ships an order |
 | 856 | Advance Ship Notice | AM → Orderful → Retailer | After 945 posts to AM |
 | 810 | Invoice | AM → Orderful → Retailer | After fulfillment/invoicing rules met |
 
 **Sequencing rule:** an 888 for a new/changed item must be sent and accepted
 by DCG before that item may appear on a 940 or 943.
 
-## Transport to DCG: Orderful-hosted, not AWS
+## Transport to DCG: AWS SFTP + self-built X12
 
-Earlier design (superseded): a dedicated AWS Transfer Family SFTP Connector
-+ S3 bridge, since n8n Cloud has dynamic outbound IPs and DCG requires a
-whitelisted static IP.
+**Current decision (2026-07-29):** the DCG warehouse leg goes over an **AWS
+Transfer Family SFTP Connector + S3** bridge, and we **build/parse the X12
+ourselves** — Orderful is not involved in this leg at all (it stays only for
+the retailer 850/856/810 leg). AWS acts as the SFTP client from a static IP
+DCG whitelists; n8n Cloud's dynamic IPs can't be whitelisted directly.
 
-**Current decision:** Orderful hosts this instead. Orderful connects to
-DCG's self-hosted SFTP server directly, so DCG whitelists **Orderful's**
-static IP rather than one we'd have to stand up and maintain ourselves. This
-removes AWS/S3/Secrets Manager from the stack entirely for this client. See
-`dcg-integration-notes.md` for the full reasoning and current blocker
-(DCG's Trading Partnership needs to be accepted with the 940/943/888/944/945
-transaction types enabled before this transport can be tested).
+This reverses the earlier "Orderful hosts the DCG SFTP + Convert" plan. A
+side benefit: it removes the Orderful trading-partnership relationship gate
+that was blocking 940/943/888 — the only remaining external dependency is
+DCG's SFTP credentials, not a partner acceptance.
+
+Full design (components, S3 layout, the outbound/inbound flows, the new
+`adapters/edi/x12-dcg/` codec, control numbers): **[dcg-sftp-design.md](dcg-sftp-design.md)**.
 
 ## Open questions specific to ApparelMagic (not covered in dcg-integration-notes.md)
 

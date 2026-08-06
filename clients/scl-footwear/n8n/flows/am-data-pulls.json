@@ -7,7 +7,48 @@
       "name": "When clicking \"Execute workflow\"",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [160, 300]
+      "position": [
+        160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/inventory/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-inventory-for-pick-tickets",
+      "name": "Get AM Inventory (for Pick Tickets)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        120
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
     },
     {
       "parameters": {
@@ -17,9 +58,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" },
-            { "name": "pagination[page_number]", "value": "1" },
-            { "name": "pagination[page_size]", "value": "5" }
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "5"
+            }
           ]
         },
         "options": {}
@@ -28,19 +78,29 @@
       "name": "Get AM Pick Tickets",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [360, 120],
-      "credentials": { "queryAuth": { "name": "Query Auth account" } }
+      "position": [
+        360,
+        120
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// AM pick_tickets -> canonical PickTicket[]. Falls back to a realistic\n// sample if AM has none yet (nothing released/picked in the test company).\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst resp = $input.first().json.response || [];\nconst records = resp.length ? resp : [{\n  pick_ticket_id: 'SAMPLE-3000', order_id: null, customer_id: '1', customer_po: 'PO6979505951736416',\n  warehouse_id: '1', date: new Date().toISOString().slice(0,10), date_due: null,\n  ship_to_name: 'Best Store Ever', address_1: '111 Main Street', address_2: null,\n  city: 'West Palm Beach', state: 'FL', postal_code: '33405', country: 'USA',\n  ship_via: null, tracking_number: null, qty: '45', amount: '899.55',\n  pick_ticket_items: [ { product_id: '4', sku_id: '4', attr_2: 'BLK', size: 'M100', style_number: 'JEAN1', description: 'Classic Denim Jean', qty: '45', unit_price: '19.99', amount: '899.55', is_taxable: '0' } ]\n}];\nconst isSample = resp.length === 0;\n\nreturn records.map((record) => ({ json: { isSample, pickTicket: {\n  pickTicketId: record.pick_ticket_id, orderId: record.order_id || null, customerId: record.customer_id,\n  customerPo: record.customer_po || null, warehouseId: record.warehouse_id || null,\n  date: record.date ?? null, dateDue: record.date_due || null,\n  shipTo: { name: record.ship_to_name || null, address1: record.address_1 || null, address2: record.address_2 || null, city: record.city || null, state: record.state || null, zip: record.postal_code || null, country: record.country || null },\n  shipVia: record.ship_via || null, trackingNumber: record.tracking_number || null,\n  qty: num(record.qty), amount: num(record.amount),\n  lines: (record.pick_ticket_items || []).map((item) => ({ productId: item.product_id, skuId: item.sku_id, color: item.attr_2 || null, size: item.size || null, styleNumber: item.style_number || null, description: item.description || null, qty: num(item.qty), unitPrice: num(item.unit_price), amount: num(item.amount), isTaxable: item.is_taxable === '1' })),\n} } }));"
+        "jsCode": "// AM pick_tickets -> canonical PickTicket[], enriched with per-SKU UPC and\n// full color name from Inventory (pick_ticket_items alone only has color\n// code + size, no UPC -- same combine pattern as parseItem.js / the\n// \"Combine & Parse Items\" node below). Falls back to a realistic sample if\n// AM has none yet. Mirrors adapters/erp/apparelmagic/lib/parsePickTicket.js\n// and clients/scl-footwear/n8n/flows/940-outbound.json's copy -- keep all\n// three in sync if the enrichment logic changes.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst resp = $('Get AM Pick Tickets').first().json.response || [];\nconst skus = $('Get AM Inventory (for Pick Tickets)').first().json.response || [];\nconst skusById = {};\nfor (const sku of skus) { skusById[sku.sku_id] = sku; }\n\nconst records = resp.length ? resp : [{\n  pick_ticket_id: 'SAMPLE-3000', order_id: null, customer_id: '1', customer_po: 'PO6979505951736416',\n  warehouse_id: '1', date: new Date().toISOString().slice(0,10), date_due: null,\n  ship_to_name: 'Best Store Ever', address_1: '111 Main Street', address_2: null,\n  city: 'West Palm Beach', state: 'FL', postal_code: '33405', country: 'USA',\n  ship_via: null, tracking_number: null, qty: '45', amount: '899.55',\n  pick_ticket_items: [ { product_id: '4', sku_id: '4', attr_2: 'BLK', size: 'M100', style_number: 'JEAN1', description: 'Classic Denim Jean', qty: '45', unit_price: '19.99', amount: '899.55', is_taxable: '0' } ]\n}];\nconst isSample = resp.length === 0;\n// Sample fallback has no real Inventory match -- give it a plausible UPC/color\n// name directly so the sample stays meaningful for testing.\nif (isSample) { skusById['4'] = { sku_id: '4', attr_2: 'BLK', attr_2_name: 'Black', upc_display: '192731473731' }; }\n\nreturn records.map((record) => ({ json: { isSample, pickTicket: {\n  pickTicketId: record.pick_ticket_id, orderId: record.order_id || null, customerId: record.customer_id,\n  customerPo: record.customer_po || null, warehouseId: record.warehouse_id || null,\n  date: record.date ?? null, dateDue: record.date_due || null,\n  shipTo: { name: record.ship_to_name || null, address1: record.address_1 || null, address2: record.address_2 || null, city: record.city || null, state: record.state || null, zip: record.postal_code || null, country: record.country || null },\n  shipVia: record.ship_via || null, trackingNumber: record.tracking_number || null,\n  qty: num(record.qty), amount: num(record.amount),\n  lines: (record.pick_ticket_items || []).map((item) => {\n    const sku = skusById[item.sku_id] || {};\n    return {\n      productId: item.product_id, skuId: item.sku_id,\n      color: item.attr_2 || sku.attr_2 || null, colorName: sku.attr_2_name || null,\n      size: item.size || sku.size || null, styleNumber: item.style_number || null,\n      description: item.description || null, upc: sku.upc_display || sku.upc_11 || null,\n      qty: num(item.qty), unitPrice: num(item.unit_price), amount: num(item.amount), isTaxable: item.is_taxable === '1',\n    };\n  }),\n} } }));"
       },
       "id": "parse-pick-tickets",
       "name": "Parse Pick Tickets (or sample)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [560, 120]
+      "position": [
+        760,
+        120
+      ]
     },
     {
       "parameters": {
@@ -50,9 +110,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" },
-            { "name": "pagination[page_number]", "value": "1" },
-            { "name": "pagination[page_size]", "value": "5" }
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "5"
+            }
           ]
         },
         "options": {}
@@ -61,8 +130,15 @@
       "name": "Get AM Purchase Orders",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [360, 320],
-      "credentials": { "queryAuth": { "name": "Query Auth account" } }
+      "position": [
+        360,
+        320
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
     },
     {
       "parameters": {
@@ -73,7 +149,10 @@
       "name": "Parse Purchase Orders (or sample)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [560, 320]
+      "position": [
+        560,
+        320
+      ]
     },
     {
       "parameters": {
@@ -83,9 +162,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" },
-            { "name": "pagination[page_number]", "value": "1" },
-            { "name": "pagination[page_size]", "value": "10" }
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "10"
+            }
           ]
         },
         "options": {}
@@ -94,8 +182,15 @@
       "name": "Get AM Products",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [360, 520],
-      "credentials": { "queryAuth": { "name": "Query Auth account" } }
+      "position": [
+        360,
+        520
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
     },
     {
       "parameters": {
@@ -105,9 +200,18 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "time", "value": "={{ Math.floor(Date.now() / 1000) }}" },
-            { "name": "pagination[page_number]", "value": "1" },
-            { "name": "pagination[page_size]", "value": "50" }
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "50"
+            }
           ]
         },
         "options": {}
@@ -116,8 +220,15 @@
       "name": "Get AM Inventory (SKUs)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [560, 520],
-      "credentials": { "queryAuth": { "name": "Query Auth account" } }
+      "position": [
+        560,
+        520
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
     },
     {
       "parameters": {
@@ -128,24 +239,92 @@
       "name": "Combine & Parse Items",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [760, 520]
+      "position": [
+        760,
+        520
+      ]
     }
   ],
   "connections": {
     "When clicking \"Execute workflow\"": {
-      "main": [[
-        { "node": "Get AM Pick Tickets", "type": "main", "index": 0 },
-        { "node": "Get AM Purchase Orders", "type": "main", "index": 0 },
-        { "node": "Get AM Products", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Get AM Pick Tickets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get AM Purchase Orders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get AM Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Get AM Pick Tickets": { "main": [[{ "node": "Parse Pick Tickets (or sample)", "type": "main", "index": 0 }]] },
-    "Get AM Purchase Orders": { "main": [[{ "node": "Parse Purchase Orders (or sample)", "type": "main", "index": 0 }]] },
-    "Get AM Products": { "main": [[{ "node": "Get AM Inventory (SKUs)", "type": "main", "index": 0 }]] },
-    "Get AM Inventory (SKUs)": { "main": [[{ "node": "Combine & Parse Items", "type": "main", "index": 0 }]] }
+    "Get AM Pick Tickets": {
+      "main": [
+        [
+          {
+            "node": "Get AM Inventory (for Pick Tickets)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Purchase Orders": {
+      "main": [
+        [
+          {
+            "node": "Parse Purchase Orders (or sample)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Products": {
+      "main": [
+        [
+          {
+            "node": "Get AM Inventory (SKUs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Inventory (SKUs)": {
+      "main": [
+        [
+          {
+            "node": "Combine & Parse Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Inventory (for Pick Tickets)": {
+      "main": [
+        [
+          {
+            "node": "Parse Pick Tickets (or sample)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "pinData": {},
   "meta": {
-    "instructions": "Scaffolding for the future 940 (pick tickets)/943 (purchase orders)/888-832 (products) DCG flows -- Orderful side is BLOCKED until DCG's trade request is accepted and configured with those transaction types (confirmed live: posting a 940 to Orderful returns 'relationship doesn't exist' for both the demo partner and DCG's ISA ID). This workflow only pulls + parses AM data to canonical objects, no Orderful calls yet. Falls back to realistic samples since AM's test company has no pick tickets/POs yet. After import, re-select Query Auth account on all 4 HTTP nodes."
+    "instructions": "Scaffolding for the DCG flows -- 888 and 940 are now built and proven/structurally-verified (see 888-outbound.json, 940-outbound.json), 943 (purchase orders) is still open. This workflow only pulls + parses AM data to canonical objects for inspection, no DCG/S3 calls itself. Falls back to realistic samples since AM's test company has no pick tickets/POs yet. Pick ticket lines are enriched with UPC + full color name from a dedicated Inventory lookup (added 2026-08-02, same fix as 940-outbound.json -- pick_ticket_items alone has no UPC). After import, re-select Query Auth account on all 5 HTTP nodes (Get AM Pick Tickets, Get AM Inventory for Pick Tickets, Get AM Purchase Orders, Get AM Products, Get AM Inventory SKUs)."
   }
 }

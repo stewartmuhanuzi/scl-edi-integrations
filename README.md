@@ -49,8 +49,16 @@ Working today:
   (`clients/scl-footwear/n8n/flows/856-810-outbound.json`), pending the real
   post-945 trigger
 - **AM data pulls** (pick tickets, purchase orders, products/inventory) —
-  scaffolding for the DCG-facing flows, blocked on DCG's Trading Partnership
+  scaffolding for the future 943 DCG flow
   (`clients/scl-footwear/n8n/flows/am-data-pulls.json`)
+- **888 (item master) → DCG over AWS SFTP** — self-built X12 codec
+  (`adapters/edi/x12-dcg/`) — **proven live** 2026-08-01, a real file built,
+  uploaded to S3, and delivered to DCG's SFTP server on the TEST stream
+  (`clients/scl-footwear/n8n/flows/888-outbound.json`)
+- **940 (warehouse shipping order) → DCG over AWS SFTP** — built 2026-08-01,
+  one X12 file per pick ticket
+  (`clients/scl-footwear/n8n/flows/940-outbound.json`), structurally
+  verified, not yet run against real DCG
 
 Full status: [clients/scl-footwear/docs/implementation-plan.md](clients/scl-footwear/docs/implementation-plan.md).
 Client-specific architecture: [clients/scl-footwear/docs/architecture.md](clients/scl-footwear/docs/architecture.md).
@@ -66,8 +74,11 @@ Client-specific architecture: [clients/scl-footwear/docs/architecture.md](client
    `clients/<name>/.env.example` to `.env` and fill in the pooler connection
    details, then `npm install && npm run migrate -- <name>` to create the
    control-plane tables (auto-detects the client if there's only one).
-4. **n8n** — import each workflow in `clients/<name>/n8n/flows/` (and
-   `tools/` as needed) one at a time onto a **blank** new workflow;
+4. **n8n** — one shared n8n account across all clients. Create a top-level
+   folder named after this client (sub-structure: 3PL/DCG folder, Retailer
+   Templates, Retailers, Tools — see `core/architecture.md` §3), then import
+   each workflow in `clients/<name>/n8n/flows/` (and `tools/` as needed) one
+   at a time onto a **blank** new workflow inside the matching subfolder;
    re-select every credential-using node after import. See
    `clients/<name>/n8n/README.md`.
 
@@ -78,6 +89,7 @@ Client-specific architecture: [clients/scl-footwear/docs/architecture.md](client
 - [core/adapter-contract.md](core/adapter-contract.md) — what a new adapter needs, and the live-schema-discovery method
 - [adapters/erp/apparelmagic/README.md](adapters/erp/apparelmagic/README.md)
 - [adapters/edi/orderful/README.md](adapters/edi/orderful/README.md) + [schema-notes.md](adapters/edi/orderful/schema-notes.md)
+- [adapters/edi/x12-dcg/README.md](adapters/edi/x12-dcg/README.md) — planned self-built X12-over-SFTP codec for the DCG leg
 - [clients/scl-footwear/docs/](clients/scl-footwear/docs/) — implementation plan, architecture, DCG notes, EDI field mapping, status
 
 ## Claude Code skills

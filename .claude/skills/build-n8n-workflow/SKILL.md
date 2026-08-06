@@ -35,6 +35,32 @@ orchestrator. See `core/canonical-objects.md`.
    together (e.g. `SCL: 850 → AM (full pipeline)`).
 4. **Tag workflows** by category (`inbound`, `outbound`, `dev-utility`) once
    there are enough per client to need it.
+5. **`$('NodeName')` cross-references need a real connected path, not just
+   "runs somewhere in the same execution."** A Code node referencing another
+   node by name (e.g. `$('Get AM Customer').first()`) only resolves if
+   there's an actual chain of connections leading from that node to the
+   referencing one. A node wired as a parallel sibling off the same trigger
+   is **not** sufficient — n8n will error with "There is no connection back
+   to the node '...'" even though both nodes execute in the same run. Wire
+   any node you plan to reference by name into the actual sequential chain
+   (e.g. `Get AM Products → Get AM Inventory (SKUs) → Combine & Parse Items`)
+   rather than as a disconnected parallel fetch. Caught live 2026-08-06 after
+   wiring two lookup nodes as parallel branches by mistake — verify with a
+   quick reachability check (does the connections graph actually have a path
+   from the referenced node to the referencing one?) before calling a
+   multi-node-reference workflow done.
+6. **A Code node's return shape must match its Mode, or it fails with "A
+   'json' property isn't an object."** `Run Once for All Items` wants an
+   **array** of items (`return [{ json: {...} }, ...]`, or `return
+   records.map(r => ({ json: {...} }))`). `Run Once for Each Item` wants a
+   **single bare object**, no array wrapper (`return { json: {...}, binary:
+   {...} };`). Mixing these up — e.g. copy-pasting an array-returning
+   template into a node you then switch to per-item mode — throws this exact
+   error and won't cascade-execute upstream nodes for testing. Caught live
+   2026-08-06 in the same session as the connection-graph gotcha above; check
+   every Code node's `mode` param against its `return` statement's shape
+   before calling a workflow done, especially after copying a node's code as
+   a starting point for a differently-moded node.
 
 ## Importing (do this every time, no exceptions)
 
