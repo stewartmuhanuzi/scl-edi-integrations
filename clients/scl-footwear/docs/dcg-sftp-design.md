@@ -146,6 +146,104 @@ The Connector is live and tested from both ends:
   questions (vendor name, ISA sender/receiver IDs, division code) should be
   resolved with Chi Cao before flipping to a real send.
 
+## DCG's real SFTP credentials + directory structure (confirmed 2026-08-06)
+
+From Chi Cao's original email (forwarded by Mike 2026-08-05), previously
+only known via the connector's stored Secrets Manager credential, now
+confirmed in writing:
+
+- **Host**: `20.14.2.67`, port `22` (matches the connector)
+- **User**: `SCLFW`
+- **Password**: sent by DCG in a separate email — confirm it matches what's
+  stored in Secrets Manager for the connector
+- **Directory structure** — DCG expects files in specific subfolders, **not
+  the SFTP user's home/root directory**:
+  - Upload TEST files to `\From_SCL_TEST\` — download DCG's TEST files from `\To_SCL_TEST\`
+  - Upload PROD files to `\From_SCL_PROD\` — download DCG's PROD files from `\To_SCL_PROD\`
+- **DCG's own EDI ID (both TEST and PROD): `ZZ` / `DCG`** — confirms the
+  `receiverQualifier: 'ZZ', receiverId: 'DCG'` already used in `build888.js`/
+  `build940.js`/both n8n flows was correct, not just a placeholder.
+- **Still open**: Chi Cao is waiting on **SCL's own EDI ID** (`ISA05`/`ISA06`)
+  to configure on DCG's side. `senderId: 'SCLFOOTWEAR'` is still only our own
+  placeholder — needs an actual decision from Mike/SCL, then a reply to Chi Cao.
+
+**Real gap found because of this**: `StartFileTransfer`'s `SendFilePaths`
+had no `RemoteDirectoryPath` set in either flow — per AWS's own docs, that
+means transfers land in the SFTP user's **home directory**, not
+`\From_SCL_TEST\`. **Fixed 2026-08-06**: both `888-outbound.json` and
+`940-outbound.json` now pass `RemoteDirectoryPath: '/From_SCL_TEST'` in the
+`StartFileTransfer` body.
+
+**Confirmed the two earlier sends never actually reached DCG** — not just
+suspected. Built `n8n/tools/check-dcg-directory.json` (a `StartDirectoryListing`
+diagnostic — browses DCG's real SFTP folder directly, no waiting on Chi Cao)
+and used it to check `\From_SCL_TEST\` directly: **`"files": []` — the folder
+is empty.** Both the 888 (Aug 1) and 940 (Aug 6) test sends should be treated
+as lost — DCG never saw them — and re-run now that the path fix (above) and
+a second, separate permissions fix (below) are both in place.
+
+**Second real gap found while building the diagnostic tool**: the connector's
+own **execution role** (`scl-dcg-transfer-connector-role` — separate from the
+`n8n-dcg-integration` IAM user; this is the role AWS's backend uses to
+actually read/write S3 on the connector's behalf, not the role that calls the
+API) was scoped only to the `scl-dcg-sftp-bridge/dcg/*` prefix. Since every
+flow actually writes to `outbound/*`, **this same gap almost certainly caused
+the original two "successful" sends to silently fail** — `StartFileTransfer`'s
+immediate 200 response only confirms AWS *accepted the request*; actual
+success requires the connector's role to read the source file from S3, which
+it couldn't do outside `dcg/*`. We were never checking `ListFileTransferResults`
+to catch this. **Fixed**: broadened that role's policy to also cover
+`outbound/*` and `dcg-listings/*` (kept `dcg/*` intact). Confirmed working
+afterward — the diagnostic tool successfully wrote and read back a real
+listing file once the role was fixed.
+
+**Third, deepest real gap — the actual root cause of both failed sends (found
+2026-08-07)**: built `n8n/tools/check-transfer-result.json` (calls
+`ListFileTransferResults` with a real `TransferId`, closing the blind-spot
+above) and ran it against a fresh 888 send. Result: `StatusCode: 'FAILED'`,
+`FailureCode: 'SEND_FILE_NOT_FOUND'`, `FilePath:
+'/scl-dcg-sftp-bridge/outbound/pending/undefined'` — the literal string
+`undefined` in the S3 key. Root cause: `StartFileTransfer`'s `SendFilePaths`
+built its key from `$json.fileName`, but `$json` at that node is the
+*immediately preceding* `Upload to S3` node's own output (`{success: true}`),
+which does not pass through the original `fileName` field — n8n node output
+is not a pass-through of input by default. `Upload to S3` itself is one hop
+closer to `Reattach File + Metadata` (the node that actually sets
+`fileName`), so *its* plain `$json.fileName` reference happened to work,
+which is why files landed correctly in S3 under the right name — the break
+was only in the next hop. **Fixed** in both `888-outbound.json` and
+`940-outbound.json`: `StartFileTransfer`'s body now reads
+`$('Reattach File + Metadata').item.json.fileName` (named cross-reference)
+instead of `$json.fileName`, matching the pattern the downstream `Mark Sent`
+node already used correctly. This is more fundamental than either fix above —
+regardless of `RemoteDirectoryPath` or the connector-role scoping, every send
+was always requesting a file path that could never exist. Verified: JSON
+valid, and the `$('Reattach File + Metadata')` reference resolves to a real
+connected path in both files. **Confirmed live 2026-08-10**: re-ran
+`888-outbound.json` end to end with the fix applied, got a fresh `TransferId`
+(`86983c78-bc33-4e67-b539-366d4e5c0862`), checked it with
+`check-transfer-result.json`, and got back `StatusCode: 'COMPLETED'` —
+`FilePath: /scl-dcg-sftp-bridge/outbound/pending/SCL_888_2026-08-10T17-12-34-503Z.txt`.
+**This is the first genuinely confirmed delivery to DCG** — not just an
+accepted request, an actual completed transfer.
+
+**Follow-up still worth doing**: build a `ListFileTransferResults` poll
+directly into `888-outbound.json`/`940-outbound.json` after `StartFileTransfer`
+so future sends self-verify instead of needing a manual follow-up check with
+`check-transfer-result.json`.
+
+**Direct verification, not just waiting on DCG (added 2026-08-06)**:
+`clients/scl-footwear/n8n/tools/check-dcg-directory.json` calls the
+connector's `StartDirectoryListing` API to literally browse a folder on
+DCG's real SFTP server and confirm what's actually there — no need to wait
+for Chi Cao to check manually. Needs `transfer:StartDirectoryListing` added
+to the IAM policy (already added to `n8n-aws-iam-policy.json`, needs saving
+as a new policy version in the console). If it errors with `AccessDenied`
+after that, check the *connector's own* execution role too (separate from
+the n8n IAM user) — AWS's backend, not the caller, writes the listing output
+file to S3, so the connector's role needs write access to
+`scl-dcg-sftp-bridge/dcg-listings/`.
+
 ## IAM policy for n8n's AWS credential
 
 `n8n-aws-iam-policy.json` (in this folder) is the least-privilege policy for

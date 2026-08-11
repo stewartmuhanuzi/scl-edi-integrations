@@ -87,12 +87,12 @@ expects the dual case+each pattern.
 2. **Vendor Item Number (G3903)** — is `styleNumber+size` acceptable, or does DCG need a specific scheme.
 3. **Division/brand code (N9|DV)** — does SCL need this at all; if so, what values.
 4. **Case-pack data** — does DCG's mapping require the dual case+each G39 pattern, or is one row per SKU sufficient.
-5. **Sender/receiver ISA IDs** — what DCG expects for SCL (not `VIDA`/`DCG` from the sample) — tracked in `dcg-sftp-design.md`.
+5. ~~**Sender/receiver ISA IDs**~~ — **receiver half resolved 2026-08-06**: Chi Cao confirmed DCG's own EDI ID is `ZZ` / `DCG` for both TEST and PROD — matches the `receiverQualifier: 'ZZ', receiverId: 'DCG'` already used as a placeholder, now confirmed correct, not a guess. **Sender half still open**: Chi Cao is waiting on SCL's own EDI ID (`ISA05`/`ISA06`) to configure on DCG's side — `senderId: 'SCLFOOTWEAR'` is still just our own placeholder until Mike/SCL decide and send Chi Cao the real value. Tracked in `dcg-sftp-design.md`.
 
 ## Not yet built
 
-`build943.js`, `parse944.js`, `parse945.js` — see
-`adapters/edi/x12-dcg/README.md` for build order.
+`parse944.js`, `parse945.js` — see `adapters/edi/x12-dcg/README.md` for
+build order.
 
 ---
 
@@ -174,3 +174,111 @@ Same conventions as 888 (see above), except:
    require any of the fields listed as "deliberately omitted" above.
 4. **The `04`-qualified `G62` date** — what it represents, if DCG's mapper
    expects it.
+
+**Proven live 2026-08-10** — Stewart applied the `fileName` reference fix
+(`$('Reattach File + Metadata').item.json.fileName`, not `$json.fileName`)
+directly to the live n8n canvas and re-ran `940-outbound.json` against real
+DCG. Confirmed working.
+
+---
+
+# 943 (Warehouse Shipment Advice — DCG's "Inbound Purchase Order" / Factory ASN)
+
+Verified against DCG's real samples (`sample-943-simple.txt`,
+`sample-943-with-cartons.txt`) and field meanings from
+`vida-mapping-943-944.txt` — **messier than even 940's mapping doc**: several
+fields are marked "we wouldn't send this anymore" yet still appear in both
+real samples, and the two real samples genuinely **disagree with each other**
+on both segment placement and the per-line vendor-item-number scheme (see
+below) — not just missing documentation, actual inconsistency in DCG's own
+historical data. Implemented in `lib/build943.js`, reusing `lib/envelope.js`
+and `lib/itemCode.js`'s `vendorItemNumber()` for consistency with 888/940.
+Maps canonical `PurchaseOrder` → 943 (vendor stock SCL is telling DCG's
+warehouse to expect).
+
+## Envelope
+
+Same conventions as 888/940, except:
+- `GS01` (functional identifier code) is `AR`, not `QG`/`OW` — confirmed in
+  both real samples.
+
+## Body segments (once-per-file)
+
+| Segment | Fields | Notes |
+|---|---|---|
+| `W06` | reporting code `F`, order number, creation date (`CCYYMMDD`), order number again, 6 blanks, transaction type code | `W0602`/`W0604` both carry the same value in both real samples (not a transcription artifact) — this is the correlation ID DCG must round-trip on the 944 (`W1704`), matching the architecture's correlation-id design. `build943.js` sources both from `purchaseOrder.purchaseOrderId`. `W0603` mirrors the envelope's own `GS04` date in both samples. |
+| `N1`/`PER` (`WH`) | warehouse/location code | Both segments carry the *same* value in both real samples — a **DCG-side** physical-location code per the mapping doc's own note ("Liz to communicate mapping of M3 WHLO to physical locations in DCG system"), **not** AM's own `warehouseId` (different systems, no canonical mapping). Exposed as `options.warehouseCode`, no default — confirm the real value(s) with Chi Cao before a real send. |
+| `G62` | date qualifier `17`, expected delivery date | `purchaseOrder.dateDue`. |
+
+## Header-level `N9` (before `G62`)
+
+| Qualifier | Meaning | Notes |
+|---|---|---|
+| `CO` | "M3 Order Number" | **Position is inconsistent between DCG's own two real samples** — `sample-943-simple.txt` sends it in the header block (before `G62`); `sample-943-with-cartons.txt` sends it in the trailing block (after the line). `build943.js` puts it in the header, matching the simpler/cleaner sample. Also a genuinely distinct value from `W0602` in the real data, and canonical `PurchaseOrder` only has one order identifier — exposed as `options.orderReference`, not auto-derived; omitted unless supplied. |
+| `KK` | "Delivery Reference/Method" | Mapped from `purchaseOrder.shipVia`. |
+| `SI` | "Trailer/Container Number" | Mapped from `purchaseOrder.trackingNumber`. |
+| `ZA` | "M3 Supplier Number" | No canonical DCG-side vendor-number mapping (same category of gap as 888's N1 vendor-name ambiguity) — omitted. |
+
+## Per-line segments (`W04`, `G69`, `N9`)
+
+`W04` — real samples are **inconsistent with each other** on the trailing
+elements: `sample-943-simple.txt`'s line has fewer/blank trailing fields;
+`sample-943-with-cartons.txt`'s line has extra undocumented-looking values
+(`CA`, `CHO1`) whose meaning isn't given anywhere in the mapping doc, plus a
+trailing `IZ`-qualified size pair not present in the other sample. Rather
+than guess at the inconsistent parts, `build943.js` only emits the elements
+with clear, consistent meaning across both samples and the mapping doc:
+qty, `EA` UOM, a blank UPC slot (doc: "not sent anymore," matches both
+samples), the `VN`-qualified vendor item number (via the shared
+`vendorItemNumber()` helper — DCG's own real data doesn't use one
+consistent scheme either, so this is a deliberate choice to stay consistent
+with our own 888/940 output rather than replicate VIDA's inconsistency),
+the `IT`-qualified style number, and the 6-digit zero-padded line number
+(`W0412`, confirmed present and consistent in both samples).
+
+| Segment | Notes |
+|---|---|
+| `G69` | `line.description`, only if present (matches 940's pattern; the real single-line samples don't consistently include it either). |
+| `N9\|DI`/`N9\|DV` | Brand description/code — no canonical per-line source on `PurchaseOrder`. Same optional, caller-supplied pattern as 888's `N9\|DV` division code (`options.brandDescription`/`options.brandCode`), emitted per line to match both real samples (which show them immediately after each line's `W04`/`G69`). |
+
+## Deliberately NOT replicated from DCG's samples
+
+- **`N9\|GM`** (carton-scan SSCC) — `sample-943-with-cartons.txt` has 428
+  separate SSCC codes for one 5136-unit line. Same decision already made for
+  the 943/945 pair generally (see `dcg-integration-notes.md`): AM has no
+  carton-level packing data to generate these from, and DCG already offered
+  to drop this segment.
+- **`N1\|LW`** — present in `sample-943-simple.txt` only; per the mapping
+  doc this is a Distribution-Order-flavor field ("M3 Customer Number"), not
+  applicable to the Factory-ASN flavor this builder targets.
+- **`N9\|PO`/`N9\|CH`** — "Customer PO for Special Buy," doc explicitly
+  marks these as sent "only in case of Special Buy" — an edge case, not the
+  default flow.
+- **`N9\|ZZ`** ("Production No") — doc says "not sent anymore," present in
+  the real sample anyway with no clear canonical source; skipped like the
+  equivalent case on 888/940.
+
+## Open questions to confirm with Chi Cao before a real send
+
+1. Everything already open for 888/940 (ISA sender ID, vendor item number
+   scheme) applies here too.
+2. **`options.warehouseCode`** — the real DCG-side warehouse/location
+   code(s) SCL should send (no canonical AM equivalent exists).
+3. **`N9\|CO` placement** — header vs. trailing block; DCG's own two real
+   samples disagree (see above). Likely doesn't matter to DCG's parser
+   (read by qualifier, not position) but worth a direct confirm rather than
+   assuming.
+4. **The undocumented `W04` trailing elements** (`CA`, `CHO1`-style values
+   in `sample-943-with-cartons.txt`) — whether DCG's mapper actually
+   requires them or they're VIDA-specific cruft, same category as 888's
+   "??" fields.
+5. **Transaction type code default (`PO`)** — confirmed present in one real
+   sample for a scenario matching Factory ASN, but worth an explicit check
+   like 940's `42` default got.
+
+**Proven live 2026-08-10** — `943-outbound.json` imported into n8n and run
+against a real Apparel Magic purchase order. `StartFileTransfer` returned a
+real `TransferId`, confirmed `COMPLETED` via `ListFileTransferResults`
+(`SCL_943_100_2026-08-10T19-02-51-435Z.txt`, delivered on the first real
+attempt — built after 888/940's `fileName` bug was already found and fixed,
+so no repeat of that root cause here).

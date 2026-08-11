@@ -1,0 +1,152 @@
+{
+  "name": "Check DCG Directory (SFTP listing)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://transfer.us-east-2.amazonaws.com/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Amz-Target",
+              "value": "TransferService.StartDirectoryListing"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-amz-json-1.1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ConnectorId: 'c-71cf9ddb758b4376b', OutputDirectoryPath: '/scl-dcg-sftp-bridge/dcg-listings', RemoteDirectoryPath: $json.remoteDirectoryPath || '/From_SCL_TEST' }) }}",
+        "options": {}
+      },
+      "id": "start-directory-listing",
+      "name": "StartDirectoryListing (DCG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "aws": {
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-for-listing",
+      "name": "Wait (listing is async)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "bucketName": "scl-dcg-sftp-bridge",
+        "fileKey": "=dcg-listings/{{ JSON.parse($('StartDirectoryListing (DCG)').item.json.data).OutputFileName }}",
+        "options": {}
+      },
+      "id": "get-listing-file",
+      "name": "Get Listing File from S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "aws": {
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// The listing file's real shape (confirmed live 2026-08-06 by fetching the\n// S3 object directly): { files: [...], paths: [...], truncated: bool } --\n// NOT a bare array as AWS's own doc summary implied. files/paths entries are\n// { filePath, modifiedTimestamp, size } for one level of DCG's remote\n// directory (no recursion into subfolders).\n//\n// This n8n instance stores binary data on its own filesystem, not inlined\n// as base64 on the item -- item.binary.data.data is just an internal mode\n// marker (confirmed live 2026-08-07: it literally contains the string\n// 'filesystem-v2', not the file bytes). Must use n8n's own binary-data\n// helper, which resolves the reference correctly regardless of storage mode\n// -- manual Buffer/base64 handling on item.binary.data.data does NOT work\n// on this instance.\nconst buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst result = JSON.parse(buffer.toString('utf-8'));\nreturn [{ json: {\n  fileCount: Array.isArray(result.files) ? result.files.length : null,\n  pathCount: Array.isArray(result.paths) ? result.paths.length : null,\n  truncated: result.truncated ?? null,\n  files: result.files ?? [],\n  paths: result.paths ?? [],\n} }];"
+      },
+      "id": "parse-listing",
+      "name": "Parse Listing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": {
+      "main": [
+        [
+          {
+            "node": "StartDirectoryListing (DCG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "StartDirectoryListing (DCG)": {
+      "main": [
+        [
+          {
+            "node": "Wait (listing is async)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait (listing is async)": {
+      "main": [
+        [
+          {
+            "node": "Get Listing File from S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Listing File from S3": {
+      "main": [
+        [
+          {
+            "node": "Parse Listing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "Manual diagnostic tool -- browses a folder on DCG's real SFTP server (via the Transfer Family connector's StartDirectoryListing API) and shows what's actually there, no waiting on Chi Cao to confirm. Defaults to /From_SCL_TEST; to check a different folder (e.g. /To_SCL_TEST, /From_SCL_PROD), pin data on the trigger with { remoteDirectoryPath: '/To_SCL_TEST' } or edit the StartDirectoryListing node's RemoteDirectoryPath directly. Needs transfer:StartDirectoryListing on the n8n IAM user's policy (see clients/scl-footwear/docs/n8n-aws-iam-policy.json) AND s3:PutObject/GetObject/ListBucket on scl-dcg-sftp-bridge/dcg-listings/* on the CONNECTOR's OWN access role (scl-dcg-transfer-connector-role -- a separate IAM role from the n8n user, used by AWS's backend to actually write the listing output; confirmed live 2026-08-06 that this role was originally scoped only to the dcg/* prefix and needed dcg-listings/* and outbound/* added). If this tool returns NoSuchKey when reading the listing file, check that role first, not the n8n user's policy. After import, re-select credentials: AWS account (both AWS nodes). Parse Listing's output shows fileCount/pathCount/truncated and the full files/paths arrays (filePath, modifiedTimestamp, size per remote file) -- confirmed live 2026-08-06 the real response shape is { files: [...], paths: [...], truncated: bool }, not a bare array. An empty files array means nothing has actually landed in that DCG folder yet."
+  }
+}
