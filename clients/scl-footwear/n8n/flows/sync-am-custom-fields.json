@@ -1,0 +1,450 @@
+{
+  "name": "SCL: AM Custom Fields Sync",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking \"Execute workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        160,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/orders/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-orders",
+      "name": "Get AM Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        120
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Generic capture of ApparelMagic's dynamic custom-attribute fields\n// (attN_*) -- see adapters/erp/apparelmagic/lib/extractCustomFields.js,\n// ported here since Code nodes can't import repo files. Keep in sync if\n// that file changes. Skips records with no custom fields set, so the\n// am_custom_fields table only ever holds records that actually have data.\nfunction extractCustomFields(record) {\n  const fields = {};\n  for (const [key, value] of Object.entries(record)) {\n    if (/^att\\d+/i.test(key) && value != null && value !== '') {\n      fields[key] = value;\n    }\n  }\n  return fields;\n}\n\nconst records = $input.first().json.response || [];\nconst results = [];\nfor (const record of records) {\n  const fields = extractCustomFields(record);\n  if (Object.keys(fields).length === 0) continue;\n  results.push({ json: {\n    recordType: 'orders',\n    recordId: String(record.order_id),\n    fields,\n  } });\n}\nreturn results;"
+      },
+      "id": "extract-orders",
+      "name": "Extract Custom Fields (Orders)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/products/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-products",
+      "name": "Get AM Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        260
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Generic capture of ApparelMagic's dynamic custom-attribute fields\n// (attN_*) -- see adapters/erp/apparelmagic/lib/extractCustomFields.js,\n// ported here since Code nodes can't import repo files. Keep in sync if\n// that file changes. Skips records with no custom fields set, so the\n// am_custom_fields table only ever holds records that actually have data.\nfunction extractCustomFields(record) {\n  const fields = {};\n  for (const [key, value] of Object.entries(record)) {\n    if (/^att\\d+/i.test(key) && value != null && value !== '') {\n      fields[key] = value;\n    }\n  }\n  return fields;\n}\n\nconst records = $input.first().json.response || [];\nconst results = [];\nfor (const record of records) {\n  const fields = extractCustomFields(record);\n  if (Object.keys(fields).length === 0) continue;\n  results.push({ json: {\n    recordType: 'products',\n    recordId: String(record.product_id),\n    fields,\n  } });\n}\nreturn results;"
+      },
+      "id": "extract-products",
+      "name": "Extract Custom Fields (Products)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/purchase_orders/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-purchase_orders",
+      "name": "Get AM Purchase Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        400
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Generic capture of ApparelMagic's dynamic custom-attribute fields\n// (attN_*) -- see adapters/erp/apparelmagic/lib/extractCustomFields.js,\n// ported here since Code nodes can't import repo files. Keep in sync if\n// that file changes. Skips records with no custom fields set, so the\n// am_custom_fields table only ever holds records that actually have data.\nfunction extractCustomFields(record) {\n  const fields = {};\n  for (const [key, value] of Object.entries(record)) {\n    if (/^att\\d+/i.test(key) && value != null && value !== '') {\n      fields[key] = value;\n    }\n  }\n  return fields;\n}\n\nconst records = $input.first().json.response || [];\nconst results = [];\nfor (const record of records) {\n  const fields = extractCustomFields(record);\n  if (Object.keys(fields).length === 0) continue;\n  results.push({ json: {\n    recordType: 'purchase_orders',\n    recordId: String(record.purchase_order_id),\n    fields,\n  } });\n}\nreturn results;"
+      },
+      "id": "extract-purchase_orders",
+      "name": "Extract Custom Fields (Purchase Orders)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/pick_tickets/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-pick_tickets",
+      "name": "Get AM Pick Tickets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        540
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Generic capture of ApparelMagic's dynamic custom-attribute fields\n// (attN_*) -- see adapters/erp/apparelmagic/lib/extractCustomFields.js,\n// ported here since Code nodes can't import repo files. Keep in sync if\n// that file changes. Skips records with no custom fields set, so the\n// am_custom_fields table only ever holds records that actually have data.\nfunction extractCustomFields(record) {\n  const fields = {};\n  for (const [key, value] of Object.entries(record)) {\n    if (/^att\\d+/i.test(key) && value != null && value !== '') {\n      fields[key] = value;\n    }\n  }\n  return fields;\n}\n\nconst records = $input.first().json.response || [];\nconst results = [];\nfor (const record of records) {\n  const fields = extractCustomFields(record);\n  if (Object.keys(fields).length === 0) continue;\n  results.push({ json: {\n    recordType: 'pick_tickets',\n    recordId: String(record.pick_ticket_id),\n    fields,\n  } });\n}\nreturn results;"
+      },
+      "id": "extract-pick_tickets",
+      "name": "Extract Custom Fields (Pick Tickets)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://sclfootwear.app.apparelmagic.com/api/json/customers/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "time",
+              "value": "={{ Math.floor(Date.now() / 1000) }}"
+            },
+            {
+              "name": "pagination[page_number]",
+              "value": "1"
+            },
+            {
+              "name": "pagination[page_size]",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-am-customers",
+      "name": "Get AM Customers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        680
+      ],
+      "credentials": {
+        "queryAuth": {
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Generic capture of ApparelMagic's dynamic custom-attribute fields\n// (attN_*) -- see adapters/erp/apparelmagic/lib/extractCustomFields.js,\n// ported here since Code nodes can't import repo files. Keep in sync if\n// that file changes. Skips records with no custom fields set, so the\n// am_custom_fields table only ever holds records that actually have data.\nfunction extractCustomFields(record) {\n  const fields = {};\n  for (const [key, value] of Object.entries(record)) {\n    if (/^att\\d+/i.test(key) && value != null && value !== '') {\n      fields[key] = value;\n    }\n  }\n  return fields;\n}\n\nconst records = $input.first().json.response || [];\nconst results = [];\nfor (const record of records) {\n  const fields = extractCustomFields(record);\n  if (Object.keys(fields).length === 0) continue;\n  results.push({ json: {\n    recordType: 'customers',\n    recordId: String(record.customer_id),\n    fields,\n  } });\n}\nreturn results;"
+      },
+      "id": "extract-customers",
+      "name": "Extract Custom Fields (Customers)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO am_custom_fields (record_type, record_id, fields)\nVALUES ($1, $2, $3::jsonb)\nON CONFLICT (record_type, record_id)\nDO UPDATE SET fields = excluded.fields, synced_at = now()\nRETURNING id, record_type, record_id;",
+        "options": {
+          "queryReplacement": "={{ $json.recordType }},{{ $json.recordId }},{{ JSON.stringify($json.fields) }}"
+        }
+      },
+      "id": "upsert-custom-fields",
+      "name": "Upsert Custom Fields (Supabase)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        960,
+        500
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute workflow\"": {
+      "main": [
+        [
+          {
+            "node": "Get AM Orders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get AM Products",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get AM Purchase Orders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get AM Pick Tickets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get AM Customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Custom Fields (Supabase)": {
+      "main": [
+        []
+      ]
+    },
+    "Get AM Orders": {
+      "main": [
+        [
+          {
+            "node": "Extract Custom Fields (Orders)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Custom Fields (Orders)": {
+      "main": [
+        [
+          {
+            "node": "Upsert Custom Fields (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Products": {
+      "main": [
+        [
+          {
+            "node": "Extract Custom Fields (Products)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Custom Fields (Products)": {
+      "main": [
+        [
+          {
+            "node": "Upsert Custom Fields (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Purchase Orders": {
+      "main": [
+        [
+          {
+            "node": "Extract Custom Fields (Purchase Orders)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Custom Fields (Purchase Orders)": {
+      "main": [
+        [
+          {
+            "node": "Upsert Custom Fields (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Pick Tickets": {
+      "main": [
+        [
+          {
+            "node": "Extract Custom Fields (Pick Tickets)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Custom Fields (Pick Tickets)": {
+      "main": [
+        [
+          {
+            "node": "Upsert Custom Fields (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AM Customers": {
+      "main": [
+        [
+          {
+            "node": "Extract Custom Fields (Customers)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Custom Fields (Customers)": {
+      "main": [
+        [
+          {
+            "node": "Upsert Custom Fields (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "Preliminary work per Mike's 2026-08-07 request: reads and stores ApparelMagic's custom attribute fields (attN_*), which are genuinely dynamic -- the field NAME itself encodes whatever label someone configured in AM's UI, differs per endpoint, and isn't even consistent across endpoints for the same underlying concept (confirmed live 2026-08-10: orders/ has att1_customer+att2_purchase_order, purchase_orders/ has att1_customer+att2_sales_order, pick_tickets/ has att2__sales_order with a double underscore -- an AM-side quirk, not a typo here). Pulls Orders/Products/Purchase Orders/Pick Tickets/Customers in parallel, generically captures any attN_* key per record (regex match, not hardcoded field names -- see adapters/erp/apparelmagic/lib/extractCustomFields.js), skips records with none, and upserts into the new am_custom_fields table (core/supabase/migrations/0002_am_custom_fields.sql -- run this migration in Supabase before executing this flow) keyed on (record_type, record_id). Uses real $1/$2/$3 parameterized query (not the {{ }}-string-interpolation pattern used elsewhere in this repo) since these are arbitrary AM-side values, not our own generated keys. Not yet wired into canonical objects or any outbound EDI mapping -- this is read-and-store only, per Mike's literal request; how these fields eventually feed into 850/856/810/888/940/943 is a separate, later decision. Not scheduled -- manual trigger only until there's a reason to run it continuously. After import, re-select credentials: Query Auth account (all 5 Get AM * nodes), Postgres account (Upsert Custom Fields)."
+  }
+}

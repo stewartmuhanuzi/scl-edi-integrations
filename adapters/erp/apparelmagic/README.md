@@ -47,3 +47,14 @@ Base URL pattern: `https://<company>.app.apparelmagic.com/api/json/<endpoint>/`
 - Test/sandbox: this ERP has no test/live stream separation like an EDI
   platform would. A given instance is either in "testing mode" (banner
   in the UI, safe to write) or production — check before writing.
+- **Custom attribute fields (`attN_*`) are genuinely dynamic, not a fixed
+  schema.** Confirmed live 2026-08-10, per Mike's request: `orders/` records
+  can carry `att1_customer`/`att2_purchase_order`, `purchase_orders/` can
+  carry `att1_customer`/`att2_sales_order`, `pick_tickets/` can carry
+  `att2__sales_order` (double underscore — an AM-side quirk in how it
+  generates the key from a configured label, not a typo here). The field
+  *name* itself encodes whatever label someone typed into AM's settings, and
+  isn't consistent even across endpoints for the same underlying concept.
+  Don't hardcode these into a parser the way named fields are handled
+  elsewhere — see `lib/extractCustomFields.js` (generic `attN` pattern
+  match) and `clients/scl-footwear/n8n/flows/sync-am-custom-fields.json`.

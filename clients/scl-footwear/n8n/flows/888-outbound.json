@@ -225,7 +225,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ ConnectorId: 'c-71cf9ddb758b4376b', SendFilePaths: ['/scl-dcg-sftp-bridge/outbound/pending/' + $json.fileName], RemoteDirectoryPath: '/From_SCL_TEST' }) }}",
+        "jsonBody": "={{ JSON.stringify({ ConnectorId: 'c-71cf9ddb758b4376b', SendFilePaths: ['/scl-dcg-sftp-bridge/outbound/pending/' + $('Reattach File + Metadata').item.json.fileName], RemoteDirectoryPath: '/From_SCL_TEST' }) }}",
         "options": {}
       },
       "id": "start-file-transfer",

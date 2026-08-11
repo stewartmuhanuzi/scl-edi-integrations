@@ -159,10 +159,17 @@ the Orderful-side builders (`build940.js` etc.) are waiting on DCG.
 2. ~~**832 decision**~~ — **resolved 2026-07-30: 888**, per Mike's direction (above).
 3. **`N9|GM` decision** — recommend dropping it on the 943 (above); confirm
    with Mike so we can tell DCG.
-4. ~~**SFTP credentials**~~ — **resolved**: connector tests successfully both
-   ends (2026-07-30), so credentials are live in Secrets Manager. Still worth
-   confirming DCG's exact folder structure/file-naming convention now that
-   the directory is browsable.
+4. ~~**SFTP credentials**~~ — **fully resolved 2026-08-06**: Chi Cao's
+   original email (forwarded by Mike) confirms host `20.14.2.67:22`, user
+   `SCLFW`, and the real directory structure —
+   `\From_SCL_TEST\`/`\To_SCL_TEST\` and `\From_SCL_PROD\`/`\To_SCL_PROD\`.
+   DCG's own EDI ID confirmed `ZZ`/`DCG`. Full detail in
+   `dcg-sftp-design.md`. **New open item this raised**: SCL's own EDI ID —
+   Chi Cao is waiting on it, still just a placeholder (`SCLFOOTWEAR`) on our
+   side. Also: `StartFileTransfer` wasn't targeting `\From_SCL_TEST\` at all
+   until this was fixed (defaulted to the SFTP user's home directory) — the
+   two test files already sent before the fix may not have landed where DCG
+   expects; worth confirming with Chi Cao.
 5. **944/945 sample files** — not received yet (we have the field mapping
    guide but no real sample `.dat`); ask Chi Cao.
 6. **Per-retailer 943/940/945 specifics** — Aaron's original ask to Jenna,

@@ -61,6 +61,37 @@ orchestrator. See `core/canonical-objects.md`.
    every Code node's `mode` param against its `return` statement's shape
    before calling a workflow done, especially after copying a node's code as
    a starting point for a differently-moded node.
+7. **AWS's JSON-RPC-style API responses (`X-Amz-Target` calls) don't
+   auto-parse in an HTTP Request node.** AWS's content-type
+   (`application/x-amz-json-1.1`) isn't the standard `application/json` n8n
+   auto-detects, so the whole response body lands as a **raw string** under
+   a single field named `data` (i.e. `$json.data`), not parsed into
+   top-level properties like `$json.OutputFileName`. Confirmed live
+   2026-08-06 building the `check-dcg-directory` tool — referencing
+   `$('NodeName').item.json.SomeField` directly silently resolves to
+   `undefined` with no error at the reference site (the error shows up
+   wherever the `undefined` gets used instead, which is confusing to debug
+   backwards from). Fix: `JSON.parse($('NodeName').item.json.data).SomeField`
+   in every expression that reads one of these AWS API responses — this
+   applies to `StartFileTransfer`, `StartDirectoryListing`, and any future
+   AWS Transfer Family API call built this way (e.g. `ListFileTransferResults`).
+
+8. **Reading binary data in a Code node needs n8n's own helper, not manual
+   `Buffer`/base64 handling on `item.binary.<prop>.data`.** That field only
+   contains the raw base64 content when n8n's binary data mode is
+   inline/memory. On instances configured for filesystem storage (n8n Cloud
+   can be), `item.binary.<prop>.data` is just an internal mode marker/
+   reference — confirmed live 2026-08-07 building `check-dcg-directory`: the
+   field literally contained the string `"filesystem-v2"`, not the file
+   bytes, producing a confusing "not valid JSON" error pointing at that
+   marker text. Fix: `const buffer = await
+   this.helpers.getBinaryDataBuffer(itemIndex, propertyName);` — this
+   resolves correctly regardless of storage mode. This only affects **reading**
+   binary data that arrived from an upstream node (e.g. after an S3
+   download); it does not affect **creating** binary data from scratch in a
+   Code node (e.g. `Buffer.from(x12String).toString('base64')` when building
+   a file to upload, as `888-outbound.json`'s "Build 888 X12" node does) —
+   that write path is unaffected.
 
 ## Importing (do this every time, no exceptions)
 

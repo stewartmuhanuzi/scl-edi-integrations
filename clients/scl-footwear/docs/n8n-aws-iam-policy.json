@@ -19,6 +19,7 @@
       "Action": [
         "transfer:StartFileTransfer",
         "transfer:ListFileTransferResults",
+        "transfer:StartDirectoryListing",
         "transfer:DescribeConnector"
       ],
       "Resource": "arn:aws:transfer:us-east-2:465573888733:connector/c-71cf9ddb758b4376b"
