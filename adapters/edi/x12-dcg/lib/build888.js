@@ -41,12 +41,12 @@ function buildG39(item, sku) {
     '0.000', 'IN',                        // G3912/13 length
     '1.000', 'CI',                        // G3914/15 volume -- one selling unit; AM has no case-pack data (see schema-notes.md, packQty is null)
     '',                                   // G3916 unmapped in DCG's spec, always blank in the sample
-    '1',                                  // G3917 pack quantity -- one unit per selling unit, see above
+    item.packageConfig ?? '',             // G3917 package config <- AM package_config (per Aaron 2026-08-11)
     '1',                                  // G3918 unmapped, constant '1' in every row of DCG's sample
-    'EA',                                 // G3919 unit of measure
+    (item.unitOfMeasure || 'EA').toUpperCase(), // G3919 unit of measure <- AM unit_of_measure (Ea/PR), default EA
     '', '', '',                           // G3920-22 unmapped in DCG's spec, always blank in the sample
-    'DI',                                 // G3923 product attribute qualifier (division/brand)
-    item.group || item.category || '',    // G3924 product attribute (brand/division description)
+    item.divisionId ?? '',                // G3923 division id <- AM division_id (per Aaron 2026-08-11)
+    item.customerCode ?? '',              // G3924 customer <- AM att1_customer custom field (per Aaron 2026-08-11)
   );
 }
 

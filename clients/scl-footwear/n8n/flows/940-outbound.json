@@ -30,7 +30,7 @@
             },
             {
               "name": "pagination[page_size]",
-              "value": "50"
+              "value": "1000"
             }
           ]
         },
@@ -68,7 +68,7 @@
             },
             {
               "name": "pagination[page_size]",
-              "value": "3"
+              "value": "1000"
             }
           ]
         },
@@ -129,7 +129,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// AM pick_tickets -> canonical PickTicket[], enriched with per-SKU UPC and\n// full color name from Inventory (pick_ticket_items alone only has color\n// code + size, no UPC -- same combine pattern as parseItem.js). Falls back\n// to a realistic sample if AM has none yet (nothing released/picked in the\n// test company). Mirrors adapters/erp/apparelmagic/lib/parsePickTicket.js --\n// keep in sync if that file changes.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst resp = $('Get AM Pick Tickets').first().json.response || [];\nconst skus = $('Get AM Inventory (SKUs)').first().json.response || [];\nconst skusById = {};\nfor (const sku of skus) { skusById[sku.sku_id] = sku; }\n\nconst records = resp.length ? resp : [{\n  pick_ticket_id: 'SAMPLE-3000', order_id: null, customer_id: '1', customer_po: 'PO6979505951736416',\n  warehouse_id: '1', date: new Date().toISOString().slice(0,10), date_due: null,\n  ship_to_name: 'Best Store Ever', address_1: '111 Main Street', address_2: null,\n  city: 'West Palm Beach', state: 'FL', postal_code: '33405', country: 'USA',\n  ship_via: null, tracking_number: null, qty: '45', amount: '899.55',\n  pick_ticket_items: [ { product_id: '4', sku_id: '4', attr_2: 'BLK', size: 'M100', style_number: 'JEAN1', description: 'Classic Denim Jean', qty: '45', unit_price: '19.99', amount: '899.55', is_taxable: '0' } ]\n}];\nconst isSample = resp.length === 0;\n// Sample fallback has no real Inventory match -- give it a plausible UPC/color\n// name directly so the sample stays meaningful for testing.\nif (isSample) { skusById['4'] = { sku_id: '4', attr_2: 'BLK', attr_2_name: 'Black', upc_display: '192731473731' }; }\n\nreturn records.map((record) => ({ json: { isSample, pickTicket: {\n  pickTicketId: record.pick_ticket_id, orderId: record.order_id || null, customerId: record.customer_id,\n  customerPo: record.customer_po || null, warehouseId: record.warehouse_id || null,\n  date: record.date ?? null, dateDue: record.date_due || null,\n  shipTo: { name: record.ship_to_name || null, address1: record.address_1 || null, address2: record.address_2 || null, city: record.city || null, state: record.state || null, zip: record.postal_code || null, country: record.country || null },\n  shipVia: record.ship_via || null, trackingNumber: record.tracking_number || null,\n  qty: num(record.qty), amount: num(record.amount),\n  lines: (record.pick_ticket_items || []).map((item) => {\n    const sku = skusById[item.sku_id] || {};\n    return {\n      productId: item.product_id, skuId: item.sku_id,\n      color: item.attr_2 || sku.attr_2 || null, colorName: sku.attr_2_name || null,\n      size: item.size || sku.size || null, styleNumber: item.style_number || null,\n      description: item.description || null, upc: sku.upc_display || sku.upc_11 || null,\n      qty: num(item.qty), unitPrice: num(item.unit_price), amount: num(item.amount), isTaxable: item.is_taxable === '1',\n    };\n  }),\n} } }));"
+        "jsCode": "// AM pick_tickets -> canonical PickTicket[], enriched with per-SKU UPC and\n// full color name from Inventory (pick_ticket_items alone only has color\n// code + size, no UPC -- same combine pattern as parseItem.js). Falls back\n// to a realistic sample if AM has none yet (nothing released/picked in the\n// test company). Mirrors adapters/erp/apparelmagic/lib/parsePickTicket.js --\n// keep in sync if that file changes.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst resp = $('Get AM Pick Tickets').first().json.response || [];\nconst skus = $('Get AM Inventory (SKUs)').first().json.response || [];\nconst skusById = {};\nfor (const sku of skus) { skusById[sku.sku_id] = sku; }\n\nconst records = resp.length ? resp : [{\n  pick_ticket_id: 'SAMPLE-3000', order_id: null, customer_id: '1', customer_po: 'PO6979505951736416',\n  warehouse_id: '1', date: new Date().toISOString().slice(0,10), date_due: null,\n  ship_to_name: 'Best Store Ever', address_1: '111 Main Street', address_2: null,\n  city: 'West Palm Beach', state: 'FL', postal_code: '33405', country: 'USA',\n  ship_via: null, tracking_number: null, qty: '45', amount: '899.55',\n  pick_ticket_items: [ { product_id: '4', sku_id: '4', attr_2: 'BLK', size: 'M100', style_number: 'JEAN1', description: 'Classic Denim Jean', qty: '45', unit_price: '19.99', amount: '899.55', is_taxable: '0' } ]\n}];\nconst isSample = resp.length === 0;\n// Sample fallback has no real Inventory match -- give it a plausible UPC/color\n// name directly so the sample stays meaningful for testing.\nif (isSample) { skusById['4'] = { sku_id: '4', attr_2: 'BLK', attr_2_name: 'Black', upc_display: '192731473731' }; }\n\nreturn records.map((record) => ({ json: { isSample, pickTicket: {\n  pickTicketId: record.pick_ticket_id, orderId: record.order_id || null, customerId: record.customer_id,\n  customerPo: record.customer_po || null, warehouseId: record.warehouse_id || null,\n  date: record.date_internal || record.date || null, dateDue: record.date_due_internal || record.date_due || null,\n  shipTo: { name: record.ship_to_name || null, address1: record.address_1 || null, address2: record.address_2 || null, city: record.city || null, state: record.state || null, zip: record.postal_code || null, country: record.country || null },\n  shipVia: record.ship_via || null, trackingNumber: record.tracking_number || null,\n  qty: num(record.qty), amount: num(record.amount),\n  lines: (record.pick_ticket_items || []).map((item) => {\n    const sku = skusById[item.sku_id] || {};\n    return {\n      productId: item.product_id, skuId: item.sku_id,\n      color: item.attr_2 || sku.attr_2 || null, colorName: sku.attr_2_name || null,\n      size: item.size || sku.size || null, styleNumber: item.style_number || null,\n      description: item.description || null, upc: sku.upc_display || sku.upc_11 || null,\n      qty: num(item.qty), unitPrice: num(item.unit_price), amount: num(item.amount), isTaxable: item.is_taxable === '1',\n    };\n  }),\n} } }));"
       },
       "id": "parse-pick-tickets",
       "name": "Parse Pick Ticket (or sample)",
@@ -152,7 +152,8 @@
       "position": [
         1160,
         300
-      ]
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -172,7 +173,8 @@
         "postgres": {
           "name": "Postgres account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -208,7 +210,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// Postgres nodes don't reliably pass through binary data from their input\n// item, so pull the X12 file's binary back from Build 940 X12 by name, and\n// merge in the correlation_id Claim & Log just produced (needed by Mark Sent).\nconst meta = $('Build 940 X12').item.json;\nconst claim = $json;\nreturn [{\n  json: { ...meta, correlationId: claim.correlation_id },\n  binary: $('Build 940 X12').item.binary,\n}];"
+        "jsCode": "// Postgres nodes don't reliably pass through binary data from their input\n// item, so pull the X12 file's binary back from Build 940 X12 by name, and\n// merge in the correlation_id Claim & Log just produced (needed by Mark Sent).\nconst meta = $('Build 940 X12').item.json;\nconst claim = $json;\nreturn {\n  json: { ...meta, correlationId: claim.correlation_id },\n  binary: $('Build 940 X12').item.binary,\n};",
+        "mode": "runOnceForEachItem"
       },
       "id": "reattach-file",
       "name": "Reattach File + Metadata",
@@ -217,7 +220,8 @@
       "position": [
         1760,
         300
-      ]
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -240,7 +244,8 @@
         "aws": {
           "name": "AWS account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -278,7 +283,8 @@
         "aws": {
           "name": "AWS account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -291,14 +297,118 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2360,
+        2960,
         300
       ],
       "credentials": {
         "postgres": {
           "name": "Postgres account"
         }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Normalize a failed item (from any node's error output) for the errors table.\nconst j = $json || {};\nconst err = j.error || {};\nconst ptId = j.pickTicketId || (j.pickTicket && j.pickTicket.pickTicketId) || null;\nconst correlationId = j.correlationId || j.dedupeKey || (ptId ? ('940|' + ptId) : 'unknown');\nconst rootCause = String(err.message || err.description || 'DCG 940 outbound failure').slice(0, 500);\nconst detail = JSON.stringify({ message: err.message || null, pickTicketId: ptId, stack: err.stack ? String(err.stack).slice(0, 1000) : null });\nreturn { json: { correlationId, rootCause, detail } };"
+      },
+      "id": "format-error",
+      "name": "Format Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO errors (correlation_id, root_cause, detail, retry_eligible)\nVALUES ($1, $2, $3::jsonb, true)\nRETURNING id, correlation_id;",
+        "options": {
+          "queryReplacement": "={{ $json.correlationId }},{{ $json.rootCause }},{{ $json.detail }}"
+        }
+      },
+      "id": "log-error",
+      "name": "Log Error (Supabase)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1760,
+        520
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
       }
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-for-dcg",
+      "name": "Wait for DCG",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://transfer.us-east-2.amazonaws.com/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Amz-Target",
+              "value": "TransferService.ListFileTransferResults"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-amz-json-1.1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ConnectorId: 'c-71cf9ddb758b4376b', TransferId: JSON.parse($('StartFileTransfer (DCG)').item.json.data).TransferId }) }}",
+        "options": {}
+      },
+      "id": "list-transfer-results",
+      "name": "ListFileTransferResults (DCG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2560,
+        300
+      ],
+      "credentials": {
+        "aws": {
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Confirm the file actually landed at DCG. StartFileTransfer's 200 only means\n// AWS ACCEPTED the request; ListFileTransferResults gives the real outcome.\n// A throw here fails the execution, which fires the SCL: Error Alerts workflow\n// and emails help@goodmove.xyz. (AWS x-amz-json-1.1 responses arrive as a raw\n// string under $json.data -- see build-n8n-workflow skill gotcha #7.)\nconst body = JSON.parse($json.data);\nconst results = body.FileTransferResults || [];\nif (results.length === 0) {\n  throw new Error('DCG delivery NOT confirmed: no transfer results returned yet. Increase the Wait, or check the connector.');\n}\nconst failed = results.filter((r) => r.StatusCode !== 'COMPLETED');\nif (failed.length > 0) {\n  const f = failed[0];\n  throw new Error('DCG delivery FAILED: ' + (f.FailureCode || 'unknown') + ' - ' + (f.FailureMessage || '') + ' (file: ' + (f.FilePath || '?') + ')');\n}\nreturn $json; // all COMPLETED -> continue to Mark Sent"
+      },
+      "id": "verify-transfer",
+      "name": "Verify Transfer (DCG)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2760,
+        300
+      ]
     }
   ],
   "connections": {
@@ -343,6 +453,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -351,6 +468,13 @@
         [
           {
             "node": "New File?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Error",
             "type": "main",
             "index": 0
           }
@@ -377,6 +501,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -388,6 +519,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -395,7 +533,14 @@
       "main": [
         [
           {
-            "node": "Mark Sent (Supabase)",
+            "node": "Wait for DCG",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Error",
             "type": "main",
             "index": 0
           }
@@ -423,10 +568,66 @@
           }
         ]
       ]
+    },
+    "Mark Sent (Supabase)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "node": "Log Error (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for DCG": {
+      "main": [
+        [
+          {
+            "node": "ListFileTransferResults (DCG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ListFileTransferResults (DCG)": {
+      "main": [
+        [
+          {
+            "node": "Verify Transfer (DCG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Transfer (DCG)": {
+      "main": [
+        [
+          {
+            "node": "Mark Sent (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "pinData": {},
   "meta": {
-    "instructions": "Pulls up to 3 real AM pick tickets (falls back to one realistic sample if AM's test company has none yet), a generic AM customer lookup, and AM Inventory (to enrich pick-ticket lines with UPC + full color name, same combine pattern as the 888 flow -- pick_ticket_items alone has no UPC), ports adapters/edi/x12-dcg/lib/{envelope,itemCode,build940}.js into the 'Build 940 X12' Code node (runs ONCE PER pick ticket, unlike 888 which batches -- each pick ticket is its own 940 shipment). Dedupes/logs to Supabase per pick ticket, uploads each X12 file to S3, pushes it to DCG via StartFileTransfer. Known gaps (see adapters/edi/x12-dcg/schema-notes.md): customer name comes from a generic (unfiltered) AM customer lookup, not matched to the pick ticket's actual customerId -- AM's customers/ endpoint filter-by-ID capability hasn't been confirmed; several 940 fields (N1|BF, N1|SF, several N9 extensions) are deliberately omitted, no canonical PickTicket source. Also TBD: ISA sender/receiver IDs, and confirming transaction-type code 42 with Chi Cao (well-supported default, not yet explicitly confirmed). After import, re-select credentials: Query Auth account (Get AM Pick Tickets, Get AM Customer, Get AM Inventory), Postgres account (Claim & Log, Mark Sent), AWS account (Upload to S3, StartFileTransfer). Uses usageIndicator 'T' (test) and stream 'TEST' throughout."
+    "instructions": "Pulls up to 3 real AM pick tickets (falls back to one realistic sample if AM's test company has none yet), a generic AM customer lookup, and AM Inventory (to enrich pick-ticket lines with UPC + full color name, same combine pattern as the 888 flow -- pick_ticket_items alone has no UPC), ports adapters/edi/x12-dcg/lib/{envelope,itemCode,build940}.js into the 'Build 940 X12' Code node (runs ONCE PER pick ticket, unlike 888 which batches -- each pick ticket is its own 940 shipment). Dedupes/logs to Supabase per pick ticket, uploads each X12 file to S3, pushes it to DCG via StartFileTransfer. Known gaps (see adapters/edi/x12-dcg/schema-notes.md): customer name comes from a generic (unfiltered) AM customer lookup, not matched to the pick ticket's actual customerId -- AM's customers/ endpoint filter-by-ID capability hasn't been confirmed; several 940 fields (N1|BF, N1|SF, several N9 extensions) are deliberately omitted, no canonical PickTicket source. Also TBD: ISA sender/receiver IDs, and confirming transaction-type code 42 with Chi Cao (well-supported default, not yet explicitly confirmed). After import, re-select credentials: Query Auth account (Get AM Pick Tickets, Get AM Customer, Get AM Inventory), Postgres account (Claim & Log, Mark Sent), AWS account (Upload to S3, StartFileTransfer). Uses usageIndicator 'T' (test) and stream 'TEST' throughout. INLINE DELIVERY VERIFICATION: after StartFileTransfer, Wait 5s -> ListFileTransferResults -> Verify Transfer (DCG) confirms the file actually reached DCG (StartFileTransfer 200 only means AWS accepted the request). If the transfer FAILED (or no result yet), Verify throws -> execution fails -> the SCL: Error Alerts error workflow emails help@goodmove.xyz. Only a COMPLETED transfer proceeds to Mark Sent. Set this flow Settings -> Error Workflow = SCL: Error Alerts. Re-select the AWS account credential on ListFileTransferResults after import."
   }
 }

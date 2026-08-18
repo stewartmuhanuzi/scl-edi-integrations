@@ -82,9 +82,14 @@ Produced by: `adapters/erp/apparelmagic/lib/parsePurchaseOrder.js`
 {
   purchaseOrderId, vendorId, warehouseId, date, dateStart, dateDue,
   shipTo: { address1, address2, city, state, zip, country },
-  shipVia, trackingNumber, qty, qtyReceived, qtyOpen, amount,
+  shipVia, trackingNumber,
+  customerCode, salesOrderRef,   // AM att1_customer / att2_sales_order → 943 N9|CH / N9|CO
+  qty, qtyReceived, qtyOpen, amount,
   lines: [{ productId, skuId, color, size, styleNumber, description, qty, qtyOpen, qtyReceived, unitCost, amount }],
 }
+
+Dates use AM's `*_internal` (ISO `YYYY-MM-DD`) fields, not the display
+`MM/DD/YYYY` ones — the latter break X12 `CCYYMMDD` formatting.
 ```
 
 ## `Item` (ERP product + SKUs → outbound 888/832)
@@ -98,6 +103,7 @@ exposes this as a single endpoint)
 {
   productId, styleNumber, description, category, group, origin, content,
   weight, boxSize, packQty, isTaxable, cost, price,
+  packageConfig, unitOfMeasure, divisionId, customerCode,  // AM package_config / unit_of_measure / division_id / att1_customer → 888 G3917 / G3919 / G3923 / G3924
   skus: [{ skuId, color, colorName, size, upc, price, cost, weight, active }],
 }
 ```

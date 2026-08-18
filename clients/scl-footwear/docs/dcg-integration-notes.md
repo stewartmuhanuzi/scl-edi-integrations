@@ -140,10 +140,11 @@ this, unlike the 856/810 case which worked against the existing retail demo
 partnership.
 
 **What's unblocked in the meantime:** the ApparelMagic side. Canonical
-parsers (`parsePickTicket.js`, `parsePurchaseOrder.js`, `parseItem.js`) and
-an n8n workflow (`n8n/flows/am-data-pulls.json`) that pulls + parses AM pick
-tickets, purchase orders, and products/inventory are built and ready — only
-the Orderful-side builders (`build940.js` etc.) are waiting on DCG.
+parsers (`parsePickTicket.js`, `parsePurchaseOrder.js`, `parseItem.js`) pull +
+parse AM pick tickets, purchase orders, and products/inventory — these now
+feed the built DCG flows (`888/940/943-outbound.json`). (An early
+`am-data-pulls.json` scaffolding workflow exercised all three parsers at once;
+retired 2026-08-18 once the per-document flows were built.)
 
 ## Open items
 

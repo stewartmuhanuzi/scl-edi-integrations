@@ -1,0 +1,81 @@
+{
+  "name": "SCL: Error Alerts (email on any job failure)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "On Any Job Failure",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// n8n fires this workflow whenever a job that names it as its \"Error\n// Workflow\" fails. Payload shape: { execution: { id, url, error,\n// lastNodeExecuted, mode }, workflow: { id, name } }. Build a readable\n// email from it. NOTE: n8n only triggers on a REAL failure -- not on\n// normal no-ops (a job that finds nothing new, or skips an already-sent\n// item), so those never page anyone.\nconst t = $json || {};\nconst e = t.execution || {};\nconst wf = t.workflow || {};\nconst errMsg = (e.error && (e.error.message || e.error.description)) || 'Unknown error';\nconst node = e.lastNodeExecuted || 'unknown step';\nconst when = new Date().toISOString();\nconst mode = e.mode || 'unknown';\n\nconst subject = `SCL job failed: ${wf.name || 'unknown workflow'}`;\nconst body = [\n  `A scheduled/triggered n8n job failed.`,\n  ``,\n  `Workflow:   ${wf.name || wf.id || 'unknown'}`,\n  `Failed at:  ${node}`,\n  `Error:      ${errMsg}`,\n  `Run mode:   ${mode}`,\n  `Time (UTC): ${when}`,\n  e.url ? `Execution:  ${e.url}` : '',\n  ``,\n  `-- Automated alert from the SCL n8n error handler.`,\n].filter((l) => l !== undefined && l !== null).join('\\n');\n\nreturn [{ json: { subject, body } }];"
+      },
+      "id": "format-alert",
+      "name": "Format Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "help@goodmove.xyz",
+        "toEmail": "help@goodmove.xyz",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "On Any Job Failure": {
+      "main": [
+        [
+          {
+            "node": "Format Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instructions": "Central error handler for every SCL production job. Starts with an Error Trigger: n8n runs this workflow automatically whenever ANOTHER workflow that names this one as its 'Error Workflow' fails. To wire it up: in each production flow (888/940/943/850/856-810), open Workflow Settings -> Error Workflow -> select 'SCL: Error Alerts'. Then any real failure emails the recipient with the workflow name, the failed step, the error message, and a link to the execution for debugging. IMPORTANT re false positives: n8n's Error Trigger fires ONLY on an actual execution failure -- NOT on successful runs, IF-branch stops, dedupe skips (already-sent), or empty-data no-ops -- so 'nothing to send' never pages anyone. For transient blips (a momentary API timeout), set retries on the risky node (node Settings -> Retry On Fail, e.g. 2 retries) so it self-heals before counting as a failure. SETUP NEEDED before this works: (1) create an SMTP credential in n8n (any provider) and select it on 'Send Alert Email'; (2) fromEmail/toEmail are set to help@goodmove.xyz (alerts land in the help inbox); adjust recipients if needed. Uses the Send Email (SMTP) node -- swap for the Gmail node if you prefer Gmail OAuth over SMTP."
+  }
+}

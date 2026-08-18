@@ -15,8 +15,10 @@ export function parsePickTicket(record, skusById = {}) {
     customerId: record.customer_id,
     customerPo: record.customer_po || null,
     warehouseId: record.warehouse_id || null,
-    date: record.date ?? null,
-    dateDue: record.date_due || null,
+    // Prefer AM's *_internal fields (ISO YYYY-MM-DD); the non-internal ones
+    // are MM/DD/YYYY, which breaks X12 CCYYMMDD date formatting downstream.
+    date: record.date_internal || record.date || null,
+    dateDue: record.date_due_internal || record.date_due || null,
     shipTo: {
       name: record.ship_to_name || null,
       address1: record.address_1 || null,

@@ -18,9 +18,10 @@ retailers/
   because Ross's Orderful trading partnership, ISA ID, and EDI guideline
   differ from TJ Maxx's. The templates they're copied from live one level up
   in [`../flows/`](../flows/) (`850-inbound.json`, `856-810-outbound.json`).
-- **DCG / 3PL-facing flows** (`am-data-pulls.json`, and the future
-  888/940/943/944/945) stay **shared** in [`../flows/`](../flows/) — there is
-  one DCG warehouse for all retailers, so those are not copied per retailer.
+- **DCG / 3PL-facing flows** (`888-outbound.json`, `940-outbound.json`,
+  `943-outbound.json`, and the future 944/945) stay **shared** in
+  [`../flows/`](../flows/) — there is one DCG warehouse for all retailers, so
+  those are not copied per retailer.
 
 ## The retailer config header
 

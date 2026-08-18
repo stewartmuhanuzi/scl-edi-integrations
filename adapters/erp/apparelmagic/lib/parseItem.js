@@ -16,6 +16,13 @@ export function parseItem(product, skus = []) {
     weight: num(product.weight),
     boxSize: product.box_size || null,
     packQty: null, // AM doesn't expose a direct "units per case" field on products/; comes from prepacks[] if applicable
+    // 888 DCG mapping (per Aaron, 2026-08-11): these product-header fields
+    // feed specific G39 sub-elements — package_config→G3917, unit_of_measure
+    // →G3919, division_id→G3923, att1_customer(custom)→G3924.
+    packageConfig: product.package_config || null,
+    unitOfMeasure: product.unit_of_measure || null,
+    divisionId: product.division_id || null,
+    customerCode: product.att1_customer || null,
     isTaxable: product.is_taxable === '1',
     cost: num(product.cost),
     price: num(product.price),

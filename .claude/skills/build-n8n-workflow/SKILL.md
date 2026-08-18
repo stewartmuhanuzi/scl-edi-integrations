@@ -61,6 +61,24 @@ orchestrator. See `core/canonical-objects.md`.
    every Code node's `mode` param against its `return` statement's shape
    before calling a workflow done, especially after copying a node's code as
    a starting point for a differently-moded node.
+
+   **The silent-collapse variant (worse — no error at all).** A node in
+   `Run Once for All Items` mode that returns a **hardcoded single-element
+   array** `return [{ json: {...} }]` (rather than mapping over the input)
+   built from `$json` and `$('SomeNode').item` — i.e. the *first* item only —
+   silently outputs exactly ONE item no matter how many flow in, discarding
+   the rest. No error, because the shape is technically valid for the mode.
+   It works perfectly whenever the flow happens to carry one item, then
+   silently drops all-but-the-first the day it carries many. Caught live
+   2026-08-12: a "Reattach File + Metadata" passthrough node collapsed 7
+   purchase orders down to 1 delivered file. Fix: any passthrough/reattach
+   node that should emit one output per input item must be
+   `Run Once for Each Item` returning a **bare object** (`$json` = current
+   item, `$('Node').item` = its paired item). Rule of thumb: if a node is
+   meant to be 1-in-1-out per item, it must NOT be All-Items mode with a
+   literal single-item `return [{...}]` — that only batches correctly when
+   the node is genuinely meant to fan many items into one (e.g. 888's
+   batch-all-SKUs-into-one-catalog Build node, which is correct as-is).
 7. **AWS's JSON-RPC-style API responses (`X-Amz-Target` calls) don't
    auto-parse in an HTTP Request node.** AWS's content-type
    (`application/x-amz-json-1.1`) isn't the standard `application/json` n8n

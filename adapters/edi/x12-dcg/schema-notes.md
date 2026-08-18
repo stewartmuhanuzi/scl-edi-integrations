@@ -47,12 +47,12 @@ Confirmed against the real sample:
 | 8-13 | Height/Width/Length + UOM | `0.000`/`IN` for all three | AM has no box-dimension data; DCG's own real sample is also `0.000` for every single row, so this appears acceptable in practice |
 | 14-15 | Volume + UOM | `1.000`/`CI` | **Simplified** — see "What's deliberately NOT replicated" below |
 | 16 | (unmapped) | blank | not documented in VIDA's mapping, always blank in the sample |
-| 17 | Pack Quantity | `1` | see below |
+| 17 | Package Config | `item.packageConfig` | **Confirmed mapping (Aaron, 2026-08-11): AM `package_config` (custom field) → G3917.** Real values `POLY12`, `BOX12`. (Was a hardcoded `1` before.) |
 | 18 | (unmapped) | `1` (constant) | not documented, but always literally `1` in every row of the sample |
-| 19 | UOM | `EA` (constant) | see below |
+| 19 | UOM | `item.unitOfMeasure`, uppercased, default `EA` | **Confirmed mapping (Aaron, 2026-08-11): AM `unit_of_measure` → G3919.** Real values `Ea`→`EA`, `PR` (pair). (Was a hardcoded `EA`.) |
 | 20-22 | (unmapped) | blank | not documented, always blank in the sample |
-| 23 | Product Attribute Qualifier | `DI` (division/brand, constant) | |
-| 24 | Product Attribute | `item.group \|\| item.category` | **Assumption** — canonical `Item` has no explicit "brand" field; using `group` as the closest analog. VIDA's real values are actual brand names (`Chinese Laundry`, `Rebecca Minkoff`). |
+| 23 | Division ID | `item.divisionId` | **Confirmed mapping (Aaron, 2026-08-11): AM `division_id` → G3923.** Real values `1`–`6`. (Was the hardcoded qualifier `DI`; Aaron's explicit spec supersedes that earlier inference.) |
+| 24 | Customer | `item.customerCode` | **Confirmed mapping (Aaron, 2026-08-11): AM `att1_customer` (custom field) → G3924.** Currently blank on AM products until SCL populates it. (Was `item.group\|\|item.category`.) |
 
 `G69` — one element, `item.description` (matches: DCG's sample repeats the
 *style-level* description, e.g. `KASEY`, `STANTON`, across every SKU of that
@@ -208,13 +208,14 @@ Same conventions as 888/940, except:
 |---|---|---|
 | `W06` | reporting code `F`, order number, creation date (`CCYYMMDD`), order number again, 6 blanks, transaction type code | `W0602`/`W0604` both carry the same value in both real samples (not a transcription artifact) — this is the correlation ID DCG must round-trip on the 944 (`W1704`), matching the architecture's correlation-id design. `build943.js` sources both from `purchaseOrder.purchaseOrderId`. `W0603` mirrors the envelope's own `GS04` date in both samples. |
 | `N1`/`PER` (`WH`) | warehouse/location code | Both segments carry the *same* value in both real samples — a **DCG-side** physical-location code per the mapping doc's own note ("Liz to communicate mapping of M3 WHLO to physical locations in DCG system"), **not** AM's own `warehouseId` (different systems, no canonical mapping). Exposed as `options.warehouseCode`, no default — confirm the real value(s) with Chi Cao before a real send. |
-| `G62` | date qualifier `17`, expected delivery date | `purchaseOrder.dateDue`. |
+| `G62` | date qualifier `17`, expected delivery date | `purchaseOrder.dateDue`, formatted `CCYYMMDD`. **Confirmed mapping (Mike, 2026-08-12): AM Due Date → `G6201=17` in `YYYYMMDD`.** Date must come from AM's `date_due_internal` (ISO), not `date_due` (`MM/DD/YYYY`) — the latter produced a malformed `G62\|17\|09/18/2026` in live output before the 2026-08-12 fix. |
 
 ## Header-level `N9` (before `G62`)
 
 | Qualifier | Meaning | Notes |
 |---|---|---|
-| `CO` | "M3 Order Number" | **Position is inconsistent between DCG's own two real samples** — `sample-943-simple.txt` sends it in the header block (before `G62`); `sample-943-with-cartons.txt` sends it in the trailing block (after the line). `build943.js` puts it in the header, matching the simpler/cleaner sample. Also a genuinely distinct value from `W0602` in the real data, and canonical `PurchaseOrder` only has one order identifier — exposed as `options.orderReference`, not auto-derived; omitted unless supplied. |
+| `CH` | "Customer" attribute | **Confirmed mapping (Mike, 2026-08-12): AM `att1_customer` → `N9\|CH`.** e.g. `WALMSC`, `BURLING`. Sourced from `purchaseOrder.customerCode`. |
+| `CO` | "Customer Order No" | **Confirmed mapping (Mike, 2026-08-12): AM `att2_sales_order` → `N9\|CO`.** Sourced from `purchaseOrder.salesOrderRef`; an explicit `options.orderReference` overrides it. (Position note: DCG's two real samples disagree on header vs. trailing block — `build943.js` uses the header, matching the cleaner `sample-943-simple.txt`; DCG reads by qualifier so position shouldn't matter.) |
 | `KK` | "Delivery Reference/Method" | Mapped from `purchaseOrder.shipVia`. |
 | `SI` | "Trailer/Container Number" | Mapped from `purchaseOrder.trackingNumber`. |
 | `ZA` | "M3 Supplier Number" | No canonical DCG-side vendor-number mapping (same category of gap as 888's N1 vendor-name ambiguity) — omitted. |

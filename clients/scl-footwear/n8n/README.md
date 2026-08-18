@@ -10,7 +10,7 @@ Scheduled/schedulable, run against real data, follow the standard skeleton
 the scheduling plan and development conventions.
 
 Two roles live here: **shared DCG/3PL-facing flows** (one warehouse for every
-retailer — e.g. `am-data-pulls.json`) and the **retailer-facing templates**
+retailer — e.g. `888-outbound.json`) and the **retailer-facing templates**
 (`850-inbound.json`, `856-810-outbound.json`) that get copied per retailer
 into [`retailers/`](retailers/). See [`retailers/README.md`](retailers/README.md)
 and the `add-retailer` skill for how a retailer copy is parameterized.
@@ -22,15 +22,6 @@ and the `add-retailer` skill for how a retailer copy is parameterized.
   outbound)`. Builds and creates outbound ASN/Invoice transactions in
   Orderful from Apparel Magic shipment/invoice data (falls back to a
   realistic sample if none exists yet).
-- **`am-data-pulls.json`** — `SCL: AM Data Pulls (pick tickets, purchase
-  orders, products)`. Pulls + parses Apparel Magic pick tickets, purchase
-  orders, and products/inventory into canonical objects — the scaffolding
-  888/940/943 (see below) were all built on top of. Read-only, no
-  DCG-facing calls. Has its own dedicated "Get AM Inventory (for Pick
-  Tickets)" node (separate from the one already used for products/SKUs) so
-  pick-ticket lines get real UPC + full color name — a second, redundant
-  Inventory call rather than reusing the existing node across two branches,
-  which would have given it two incoming connections and fired it twice.
 - **`888-outbound.json`** — `SCL: 888 Item Maintenance (AM → X12 → DCG)`.
   Pulls a few real Apparel Magic products/SKUs, builds an 888 X12 file
   (`adapters/edi/x12-dcg/lib/{envelope,itemCode,build888}.js`, ported into a
@@ -90,6 +81,17 @@ and the `add-retailer` skill for how a retailer copy is parameterized.
   wired into any canonical object or outbound mapping — read-and-store only,
   per Mike's literal request; built and verified against real AM data
   2026-08-10.
+- **`error-alerts.json`** — `SCL: Error Alerts (email on any job failure)`.
+  Central error handler (per Mike's 2026-08-17 request). Starts with an
+  **Error Trigger**: n8n runs it automatically whenever another workflow that
+  names it as its **Error Workflow** fails. Formats a readable email
+  (workflow name, failed step, error message, link to the execution) and
+  sends it via the Send Email (SMTP) node. **To wire up:** in each production
+  flow's Settings → Error Workflow, select this one. **Setup needed:** create
+  an SMTP credential + set from/to on `Send Alert Email`. Fires ONLY on real
+  failures — not on dedupe skips, empty-data, or IF-branch stops — so no-ops
+  don't page anyone. For transient blips, set Retry On Fail on the risky
+  node so it self-heals before counting as a failure.
 
 ## `tools/` — manual dev/test utilities
 
@@ -110,13 +112,12 @@ Manual-trigger only, never scheduled. For debugging and one-off testing.
   2026-08-06: that role was scoped only to `dcg/*`, not `outbound/*` or
   `dcg-listings/*`, which silently broke real file sends too — see
   `dcg-sftp-design.md`).
-- **`check-transfer-result.json`** — checks the *real* outcome of a specific
-  `StartFileTransfer` call via `ListFileTransferResults`. Needed because the
-  initial 200 response only confirms AWS accepted the request, not that the
-  transfer actually completed — this exact blind spot is how two failed
-  sends went unnoticed (see `dcg-sftp-design.md`). Needs a `TransferId` from
-  the send flow's `StartFileTransfer (DCG)` node output, passed via pinned
-  trigger data (`{ "transferId": "..." }`).
+> The old standalone `check-transfer-result.json` tool was retired 2026-08-18
+> — the transfer-outcome check (`ListFileTransferResults`, confirming DCG
+> actually received the file rather than trusting `StartFileTransfer`'s 200)
+> is now **inline** in each DCG flow: `Wait for DCG → ListFileTransferResults
+> (DCG) → Verify Transfer (DCG)` after `StartFileTransfer`. A failed transfer
+> throws, which fires the `SCL: Error Alerts` error workflow.
 
 ## Import notes
 

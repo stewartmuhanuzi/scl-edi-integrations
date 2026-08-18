@@ -48,9 +48,6 @@ Working today:
   Orderful, workflow built
   (`clients/scl-footwear/n8n/flows/856-810-outbound.json`), pending the real
   post-945 trigger
-- **AM data pulls** (pick tickets, purchase orders, products/inventory) —
-  scaffolding for the future 943 DCG flow
-  (`clients/scl-footwear/n8n/flows/am-data-pulls.json`)
 - **888 (item master) → DCG over AWS SFTP** — self-built X12 codec
   (`adapters/edi/x12-dcg/`) — **proven live** 2026-08-01, a real file built,
   uploaded to S3, and delivered to DCG's SFTP server on the TEST stream

@@ -59,12 +59,14 @@ function buildWarehouseLoop(warehouseCode) {
 }
 
 function buildHeaderN9(purchaseOrder, { orderReference, brandDescription, brandCode }) {
-  // N9|CO ("M3 Order Number") is a distinct field from W0602 in the real
-  // samples (different values), but canonical PurchaseOrder only has one
-  // order identifier -- exposed as an optional secondary reference rather
-  // than guessed; omitted by default.
   const segs = [];
-  if (orderReference) segs.push(segment('N9', 'CO', orderReference));
+  // N9|CH ("Customer" attribute) <- AM att1_customer, per DCG's mapping
+  // (Mike, 2026-08-12). e.g. WALMSC, BURLING.
+  if (purchaseOrder.customerCode) segs.push(segment('N9', 'CH', purchaseOrder.customerCode));
+  // N9|CO ("Customer Order No") <- AM att2_sales_order, per the same mapping.
+  // An explicit orderReference option overrides it when supplied.
+  const co = orderReference ?? purchaseOrder.salesOrderRef;
+  if (co) segs.push(segment('N9', 'CO', co));
   // N9|KK ("Delivery Reference/Method") maps reasonably to shipVia.
   if (purchaseOrder.shipVia) segs.push(segment('N9', 'KK', purchaseOrder.shipVia));
   // N9|SI ("Trailer/Container Number") maps to trackingNumber.

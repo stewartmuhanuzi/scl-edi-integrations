@@ -25,19 +25,35 @@
               "value": "={{ Math.floor(Date.now() / 1000) }}"
             },
             {
-              "name": "pagination[page_number]",
-              "value": "1"
-            },
-            {
               "name": "pagination[page_size]",
-              "value": "3"
+              "value": "1000"
             }
           ]
         },
-        "options": {}
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "pagination[last_id]",
+                    "value": "={{ $response?.body?.meta?.pagination?.last_id }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body?.meta?.pagination?.last_id || ($response.body?.response || []).length < 1000 }}",
+              "limitPagesFetched": true,
+              "maxRequests": 2000,
+              "requestInterval": 0
+            }
+          }
+        }
       },
-      "id": "get-am-products",
-      "name": "Get AM Products",
+      "id": "get-all-am-products",
+      "name": "Get All AM Products",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -63,19 +79,35 @@
               "value": "={{ Math.floor(Date.now() / 1000) }}"
             },
             {
-              "name": "pagination[page_number]",
-              "value": "1"
-            },
-            {
               "name": "pagination[page_size]",
-              "value": "50"
+              "value": "1000"
             }
           ]
         },
-        "options": {}
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "pagination[last_id]",
+                    "value": "={{ $response?.body?.meta?.pagination?.last_id }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body?.meta?.pagination?.last_id || ($response.body?.response || []).length < 1000 }}",
+              "limitPagesFetched": true,
+              "maxRequests": 2000,
+              "requestInterval": 0
+            }
+          }
+        }
       },
-      "id": "get-am-inventory",
-      "name": "Get AM Inventory (SKUs)",
+      "id": "get-all-am-inventory",
+      "name": "Get All AM Inventory",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -91,7 +123,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Combine AM products (header) + inventory (per-SKU UPC/color/size) into\n// canonical Item[] -- same logic as am-data-pulls.json's \"Combine & Parse\n// Items\" node. Keep these two in sync if adapters/erp/apparelmagic/lib/parseItem.js changes.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst products = $('Get AM Products').first().json.response || [];\nconst skus = $('Get AM Inventory (SKUs)').first().json.response || [];\nconst skusByProduct = {};\nfor (const sku of skus) {\n  (skusByProduct[sku.product_id] ??= []).push(sku);\n}\n\nreturn products.map((product) => ({ json: { item: {\n  productId: product.product_id, styleNumber: product.style_number, description: product.description ?? null,\n  category: product.category || null, group: product.group || null, origin: product.origin || null, content: product.content || null,\n  weight: num(product.weight), boxSize: product.box_size || null, isTaxable: product.is_taxable === '1',\n  cost: num(product.cost), price: num(product.price),\n  skus: (skusByProduct[product.product_id] || []).map((sku) => ({\n    skuId: sku.sku_id, color: sku.attr_2 || null, colorName: sku.attr_2_name || null, size: sku.size || null,\n    upc: sku.upc_display || sku.upc_11 || null, price: num(sku.price), cost: num(sku.cost), weight: num(sku.weight), active: sku.active === '1',\n  })),\n} } }));"
+        "jsCode": "// Combine AM products (header) + inventory (per-SKU UPC/color/size) into\n// canonical Item[] -- mirrors adapters/erp/apparelmagic/lib/parseItem.js;\n// keep in sync if that file changes.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst rawProducts = $('Get All AM Products').all().flatMap((i) => i.json.response || []);\nconst products = [...new Map(rawProducts.map((p) => [p.product_id, p])).values()]; // dedupe by product_id (AM cursor can restart -> duplicates)\nconst rawSkus = $('Get All AM Inventory').all().flatMap((i) => i.json.response || []);\nconst skus = [...new Map(rawSkus.map((s) => [s.sku_id, s])).values()]; // dedupe by sku_id\nconst skusByProduct = {};\nfor (const sku of skus) {\n  (skusByProduct[sku.product_id] ??= []).push(sku);\n}\n\nreturn products.map((product) => ({ json: { item: {\n  productId: product.product_id, styleNumber: product.style_number, description: product.description ?? null,\n  category: product.category || null, group: product.group || null, origin: product.origin || null, content: product.content || null,\n  weight: num(product.weight), boxSize: product.box_size || null, packageConfig: product.package_config || null, unitOfMeasure: product.unit_of_measure || null, divisionId: product.division_id || null, customerCode: product.att1_customer || null, isTaxable: product.is_taxable === '1',\n  cost: num(product.cost), price: num(product.price),\n  skus: (skusByProduct[product.product_id] || []).map((sku) => ({\n    skuId: sku.sku_id, color: sku.attr_2 || null, colorName: sku.attr_2_name || null, size: sku.size || null,\n    upc: sku.upc_display || sku.upc_11 || null, price: num(sku.price), cost: num(sku.cost), weight: num(sku.weight), active: sku.active === '1',\n  })),\n} } }));"
       },
       "id": "parse-items",
       "name": "Combine & Parse Items",
@@ -105,7 +137,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Ports adapters/edi/x12-dcg/lib/{envelope,build888}.js into a single n8n\n// Code node (Code nodes can't import repo files). Keep in sync with those\n// two files if the builder logic changes -- see adapters/edi/x12-dcg/schema-notes.md\n// for the full field mapping and every open question flagged below.\nconst ELEMENT_SEP = '|';\nconst SEGMENT_TERM = '\\n';\nfunction segment(...elements) { return elements.map((e) => (e ?? '')).join(ELEMENT_SEP); }\nfunction pad15(value) { return String(value ?? '').padEnd(15, ' ').slice(0, 15); }\n\nfunction buildEnvelope(cfg, bodySegments) {\n  const {\n    senderQualifier = 'ZZ', senderId, receiverQualifier = 'ZZ', receiverId,\n    interchangeControlNumber, groupControlNumber, transactionSetControlNumber = '0001',\n    functionalIdentifierCode, transactionSetIdentifierCode,\n    responsibleAgencyCode = 'X', versionReleaseIndustryCode = '004010',\n    interchangeControlVersion = '00401', usageIndicator = 'T', date = new Date(),\n  } = cfg;\n  const yy = String(date.getUTCFullYear()).slice(2);\n  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');\n  const dd = String(date.getUTCDate()).padStart(2, '0');\n  const hh = String(date.getUTCHours()).padStart(2, '0');\n  const min = String(date.getUTCMinutes()).padStart(2, '0');\n  const isaDate = `${yy}${mm}${dd}`;\n  const gsDate = `${date.getUTCFullYear()}${mm}${dd}`;\n  const time = `${hh}${min}`;\n  const isaControl = String(interchangeControlNumber).padStart(9, '0');\n  const isa = segment('ISA', '00', pad15(''), '00', pad15(''), senderQualifier, pad15(senderId), receiverQualifier, pad15(receiverId), isaDate, time, 'U', interchangeControlVersion, isaControl, '0', usageIndicator, '>');\n  const gs = segment('GS', functionalIdentifierCode, senderId, receiverId, gsDate, time, String(groupControlNumber), responsibleAgencyCode, versionReleaseIndustryCode);\n  const st = segment('ST', transactionSetIdentifierCode, transactionSetControlNumber);\n  const se = segment('SE', String(bodySegments.length + 2), transactionSetControlNumber);\n  const ge = segment('GE', '1', String(groupControlNumber));\n  const iea = segment('IEA', '1', isaControl);\n  return [isa, gs, st, ...bodySegments, se, ge, iea].join(SEGMENT_TERM) + SEGMENT_TERM;\n}\n\nconst num888 = (v) => (v == null ? '0.000' : Number(v).toFixed(3));\nfunction vendorItemNumber(item, sku) { return `${item.styleNumber ?? ''}${sku.color ?? ''}${sku.size ?? ''}`.toUpperCase().replace(/\\s+/g, ''); }\nfunction buildN1({ vendorName, divisionCode }) {\n  const elements = ['N1', 'VN', vendorName];\n  if (divisionCode) elements.push('92', divisionCode);\n  return segment(...elements);\n}\nfunction buildG62(date) {\n  const ccyymmdd = `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(date.getUTCDate()).padStart(2, '0')}`;\n  return segment('G62', '7', ccyymmdd);\n}\nfunction buildG53(maintenanceType) { return segment('G53', maintenanceType); }\nfunction buildG39(item, sku) {\n  return segment('G39', sku.upc ?? '', 'VN', vendorItemNumber(item, sku), '', num888(sku.weight ?? item.weight), 'G', 'L', '0.000', 'IN', '0.000', 'IN', '0.000', 'IN', '1.000', 'CI', '', '1', '1', 'EA', '', '', '', 'DI', item.group || item.category || '');\n}\nfunction buildG69(item) { return segment('G69', item.description ?? ''); }\nfunction buildN9Block(item, sku, { divisionCode }) {\n  const blocks = [segment('N9', 'BO', sku.color ?? '')];\n  if (divisionCode) blocks.push(segment('N9', 'DV', divisionCode));\n  blocks.push(segment('N9', 'IT', item.styleNumber ?? ''));\n  blocks.push(segment('N9', 'IZ', sku.size ?? ''));\n  if (sku.color) blocks.push(segment('N9', 'VC', sku.color, sku.colorName ?? ''));\n  return blocks;\n}\nfunction build888(items, options = {}) {\n  const { vendorName, divisionCode, maintenanceType = '003', date = new Date(), envelope = {} } = options;\n  const body = [buildN1({ vendorName, divisionCode }), buildG62(date), buildG53(maintenanceType)];\n  for (const item of items) {\n    for (const sku of item.skus ?? []) {\n      body.push(buildG39(item, sku));\n      body.push(buildG69(item));\n      body.push(...buildN9Block(item, sku, { divisionCode }));\n    }\n  }\n  return buildEnvelope({ functionalIdentifierCode: 'QG', transactionSetIdentifierCode: '888', ...envelope, date }, body);\n}\n\nconst items = $input.all().map((i) => i.json.item);\nconst now = new Date();\n// Timestamp-derived control number until the Supabase control-number\n// sequence exists (migration 0002, not yet written -- see dcg-sftp-design.md).\nconst controlNumber = Number(String(Date.now()).slice(-9));\n\nconst x12 = build888(items, {\n  vendorName: 'SCL FOOTWEAR', // TBD -- confirm exact expected value with Chi Cao, see schema-notes.md\n  date: now,\n  envelope: {\n    senderId: 'SCLFOOTWEAR',  // TBD -- confirm exact ISA sender ID DCG expects for SCL\n    receiverId: 'DCG',        // TBD -- confirm exact ISA receiver ID DCG expects for SCL\n    interchangeControlNumber: controlNumber,\n    groupControlNumber: controlNumber,\n    usageIndicator: 'T', // TEST -- flip to 'P' only once DCG confirms this is a real send\n  },\n});\n\nconst fileName = `SCL_888_${now.toISOString().replace(/[:.]/g, '-')}.txt`;\nconst productIds = items.map((i) => i.productId).join(',');\nconst dedupeKey = `888|${now.toISOString().slice(0, 10)}|${productIds}`;\n\nreturn [{\n  json: {\n    fileName, dedupeKey, correlationId: dedupeKey,\n    itemCount: items.length, productIds,\n    docType: '888', direction: 'outbound', status: 'created',\n    externalIds: JSON.stringify({ controlNumber, productIds: items.map((i) => i.productId) }),\n  },\n  binary: {\n    data: { data: Buffer.from(x12, 'utf-8').toString('base64'), mimeType: 'text/plain', fileName },\n  },\n}];"
+        "jsCode": "// Ports adapters/edi/x12-dcg/lib/{envelope,build888}.js into a single n8n\n// Code node (Code nodes can't import repo files). Keep in sync with those\n// two files if the builder logic changes -- see adapters/edi/x12-dcg/schema-notes.md\n// for the full field mapping and every open question flagged below.\nconst ELEMENT_SEP = '|';\nconst SEGMENT_TERM = '\\n';\nfunction segment(...elements) { return elements.map((e) => (e ?? '')).join(ELEMENT_SEP); }\nfunction pad15(value) { return String(value ?? '').padEnd(15, ' ').slice(0, 15); }\n\nfunction buildEnvelope(cfg, bodySegments) {\n  const {\n    senderQualifier = 'ZZ', senderId, receiverQualifier = 'ZZ', receiverId,\n    interchangeControlNumber, groupControlNumber, transactionSetControlNumber = '0001',\n    functionalIdentifierCode, transactionSetIdentifierCode,\n    responsibleAgencyCode = 'X', versionReleaseIndustryCode = '004010',\n    interchangeControlVersion = '00401', usageIndicator = 'T', date = new Date(),\n  } = cfg;\n  const yy = String(date.getUTCFullYear()).slice(2);\n  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');\n  const dd = String(date.getUTCDate()).padStart(2, '0');\n  const hh = String(date.getUTCHours()).padStart(2, '0');\n  const min = String(date.getUTCMinutes()).padStart(2, '0');\n  const isaDate = `${yy}${mm}${dd}`;\n  const gsDate = `${date.getUTCFullYear()}${mm}${dd}`;\n  const time = `${hh}${min}`;\n  const isaControl = String(interchangeControlNumber).padStart(9, '0');\n  const isa = segment('ISA', '00', pad15(''), '00', pad15(''), senderQualifier, pad15(senderId), receiverQualifier, pad15(receiverId), isaDate, time, 'U', interchangeControlVersion, isaControl, '0', usageIndicator, '>');\n  const gs = segment('GS', functionalIdentifierCode, senderId, receiverId, gsDate, time, String(groupControlNumber), responsibleAgencyCode, versionReleaseIndustryCode);\n  const st = segment('ST', transactionSetIdentifierCode, transactionSetControlNumber);\n  const se = segment('SE', String(bodySegments.length + 2), transactionSetControlNumber);\n  const ge = segment('GE', '1', String(groupControlNumber));\n  const iea = segment('IEA', '1', isaControl);\n  return [isa, gs, st, ...bodySegments, se, ge, iea].join(SEGMENT_TERM) + SEGMENT_TERM;\n}\n\nconst num888 = (v) => (v == null ? '0.000' : Number(v).toFixed(3));\nfunction vendorItemNumber(item, sku) { return `${item.styleNumber ?? ''}${sku.color ?? ''}${sku.size ?? ''}`.toUpperCase().replace(/\\s+/g, ''); }\nfunction buildN1({ vendorName, divisionCode }) {\n  const elements = ['N1', 'VN', vendorName];\n  if (divisionCode) elements.push('92', divisionCode);\n  return segment(...elements);\n}\nfunction buildG62(date) {\n  const ccyymmdd = `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(date.getUTCDate()).padStart(2, '0')}`;\n  return segment('G62', '7', ccyymmdd);\n}\nfunction buildG53(maintenanceType) { return segment('G53', maintenanceType); }\nfunction buildG39(item, sku) {\n  return segment('G39', sku.upc ?? '', 'VN', vendorItemNumber(item, sku), '', num888(sku.weight ?? item.weight), 'G', 'L', '0.000', 'IN', '0.000', 'IN', '0.000', 'IN', '1.000', 'CI', '', item.packageConfig ?? '', '1', (item.unitOfMeasure || 'EA').toUpperCase(), '', '', '', item.divisionId ?? '', item.customerCode ?? '');\n}\nfunction buildG69(item) { return segment('G69', item.description ?? ''); }\nfunction buildN9Block(item, sku, { divisionCode }) {\n  const blocks = [segment('N9', 'BO', sku.color ?? '')];\n  if (divisionCode) blocks.push(segment('N9', 'DV', divisionCode));\n  blocks.push(segment('N9', 'IT', item.styleNumber ?? ''));\n  blocks.push(segment('N9', 'IZ', sku.size ?? ''));\n  if (sku.color) blocks.push(segment('N9', 'VC', sku.color, sku.colorName ?? ''));\n  return blocks;\n}\nfunction build888(items, options = {}) {\n  const { vendorName, divisionCode, maintenanceType = '003', date = new Date(), envelope = {} } = options;\n  const body = [buildN1({ vendorName, divisionCode }), buildG62(date), buildG53(maintenanceType)];\n  for (const item of items) {\n    for (const sku of item.skus ?? []) {\n      body.push(buildG39(item, sku));\n      body.push(buildG69(item));\n      body.push(...buildN9Block(item, sku, { divisionCode }));\n    }\n  }\n  return buildEnvelope({ functionalIdentifierCode: 'QG', transactionSetIdentifierCode: '888', ...envelope, date }, body);\n}\n\nconst items = $input.all().map((i) => i.json.item);\nconst now = new Date();\n// Timestamp-derived control number until the Supabase control-number\n// sequence exists (migration 0002, not yet written -- see dcg-sftp-design.md).\nconst controlNumber = Number(String(Date.now()).slice(-9));\n\nconst x12 = build888(items, {\n  vendorName: 'SCL FOOTWEAR', // TBD -- confirm exact expected value with Chi Cao, see schema-notes.md\n  date: now,\n  envelope: {\n    senderId: 'SCLFOOTWEAR',  // TBD -- confirm exact ISA sender ID DCG expects for SCL\n    receiverId: 'DCG',        // TBD -- confirm exact ISA receiver ID DCG expects for SCL\n    interchangeControlNumber: controlNumber,\n    groupControlNumber: controlNumber,\n    usageIndicator: 'T', // TEST -- flip to 'P' only once DCG confirms this is a real send\n  },\n});\n\nconst fileName = `SCL_888_${now.toISOString().replace(/[:.]/g, '-')}.txt`;\nconst productIds = items.map((i) => i.productId).join(',');\nconst dedupeKey = `888|${now.toISOString().slice(0, 10)}`; // one full-catalog 888 per day; bounded key (all-productIds version overflowed the Postgres btree index)\n\nreturn [{\n  json: {\n    fileName, dedupeKey, correlationId: dedupeKey,\n    itemCount: items.length, productIds,\n    docType: '888', direction: 'outbound', status: 'created',\n    externalIds: JSON.stringify({ controlNumber, productIds: items.map((i) => i.productId) }),\n  },\n  binary: {\n    data: { data: Buffer.from(x12, 'utf-8').toString('base64'), mimeType: 'text/plain', fileName },\n  },\n}];"
       },
       "id": "build-888",
       "name": "Build 888 X12",
@@ -253,7 +285,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2160,
+        2760,
         300
       ],
       "credentials": {
@@ -261,6 +293,73 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-for-dcg",
+      "name": "Wait for DCG",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://transfer.us-east-2.amazonaws.com/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Amz-Target",
+              "value": "TransferService.ListFileTransferResults"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-amz-json-1.1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ConnectorId: 'c-71cf9ddb758b4376b', TransferId: JSON.parse($('StartFileTransfer (DCG)').item.json.data).TransferId }) }}",
+        "options": {}
+      },
+      "id": "list-transfer-results",
+      "name": "ListFileTransferResults (DCG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2360,
+        300
+      ],
+      "credentials": {
+        "aws": {
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Confirm the file actually landed at DCG. StartFileTransfer's 200 only means\n// AWS ACCEPTED the request; ListFileTransferResults gives the real outcome.\n// A throw here fails the execution, which fires the SCL: Error Alerts workflow\n// and emails help@goodmove.xyz. (AWS x-amz-json-1.1 responses arrive as a raw\n// string under $json.data -- see build-n8n-workflow skill gotcha #7.)\nconst body = JSON.parse($json.data);\nconst results = body.FileTransferResults || [];\nif (results.length === 0) {\n  throw new Error('DCG delivery NOT confirmed: no transfer results returned yet. Increase the Wait, or check the connector.');\n}\nconst failed = results.filter((r) => r.StatusCode !== 'COMPLETED');\nif (failed.length > 0) {\n  const f = failed[0];\n  throw new Error('DCG delivery FAILED: ' + (f.FailureCode || 'unknown') + ' - ' + (f.FailureMessage || '') + ' (file: ' + (f.FilePath || '?') + ')');\n}\nreturn $json; // all COMPLETED -> continue to Mark Sent"
+      },
+      "id": "verify-transfer",
+      "name": "Verify Transfer (DCG)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2560,
+        300
+      ]
     }
   ],
   "connections": {
@@ -268,29 +367,7 @@
       "main": [
         [
           {
-            "node": "Get AM Products",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get AM Products": {
-      "main": [
-        [
-          {
-            "node": "Get AM Inventory (SKUs)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get AM Inventory (SKUs)": {
-      "main": [
-        [
-          {
-            "node": "Combine & Parse Items",
+            "node": "Get All AM Products",
             "type": "main",
             "index": 0
           }
@@ -368,6 +445,61 @@
       "main": [
         [
           {
+            "node": "Wait for DCG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All AM Products": {
+      "main": [
+        [
+          {
+            "node": "Get All AM Inventory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All AM Inventory": {
+      "main": [
+        [
+          {
+            "node": "Combine & Parse Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for DCG": {
+      "main": [
+        [
+          {
+            "node": "ListFileTransferResults (DCG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ListFileTransferResults (DCG)": {
+      "main": [
+        [
+          {
+            "node": "Verify Transfer (DCG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Transfer (DCG)": {
+      "main": [
+        [
+          {
             "node": "Mark Sent (Supabase)",
             "type": "main",
             "index": 0
@@ -378,6 +510,6 @@
   },
   "pinData": {},
   "meta": {
-    "instructions": "Pulls 3 real AM products + their SKUs, ports adapters/edi/x12-dcg/lib/{envelope,build888}.js into the 'Build 888 X12' Code node (Code nodes can't import repo files -- keep in sync manually), dedupes/logs to Supabase, uploads the X12 file to S3, then pushes it to DCG via the Transfer Family Connector's StartFileTransfer API. TBD/unconfirmed before a real send (see adapters/edi/x12-dcg/schema-notes.md): vendor name (N1), ISA sender/receiver IDs, division code, vendor item number scheme -- all called out inline in 'Build 888 X12'. S3 bucket 'scl-dcg-sftp-bridge' (us-east-2) is confirmed real, already created. Still TBD: whether DCG needs a specific RemoteDirectoryPath in the StartFileTransfer body (currently omitted, so the connector uses its configured default). After import, re-select credentials: Query Auth account (Get AM Products, Get AM Inventory), Postgres account (Claim & Log, Mark Sent), AWS account (Upload to S3, StartFileTransfer -- this must be an n8n AWS credential with permissions for s3:PutObject on the bucket and transfer:StartFileTransfer/transfer:ListFileTransferResults on the connector). Uses usageIndicator 'T' (test) and stream 'TEST' throughout -- flip to 'P'/'LIVE' only once DCG confirms this is a real send, and only after resolving the TBD fields above."
+    "instructions": "Pulls the FULL ApparelMagic item catalog and pushes it to DCG as one 888. `Get All AM Products` and `Get All AM Inventory` are HTTP nodes using the Query Auth credential with n8n built-in CURSOR pagination: AM caps pages at 100, ignores page_number, and paginates by meta.pagination.last_id (sent back via pagination[last_id]; empty on page 1). AM auth time expires in minutes, but n8n re-evaluates the time query expression on every paginated request so it stays fresh. Stops when a page returns <100 rows; 2000-page (200k) safety cap. Combine & Parse Items flattens all pages ($(...).all().flatMap(i=>i.json.response)) and merges products (header: division_id, unit_of_measure, package_config, att1_customer) + inventory (per-SKU UPC/color/size) into canonical Items; Build 888 X12 emits one G39 per SKU with the four Aaron-mapped fields (G3917 package_config, G3919 unit_of_measure, G3923 division_id, G3924 att1_customer). One batched file for the whole catalog (~1,536 products / ~15,080 SKUs now, heading toward ~100k). SCALE CAVEAT: at ~100k this is 1,000+ sequential paginated calls + a large in-memory dataset/file -> run on self-hosted/high-memory n8n, schedule overnight/weekly, and consider chunking into multiple 888s (e.g. per division) if DCG accepts. After import re-select credentials: Query Auth account (both Get All nodes), Postgres account (Claim & Log, Mark Sent), AWS account (Upload to S3, StartFileTransfer). Uses usageIndicator T / stream TEST. INLINE DELIVERY VERIFICATION: after StartFileTransfer, Wait 5s -> ListFileTransferResults -> Verify Transfer (DCG) confirms the file actually reached DCG (StartFileTransfer 200 only means AWS accepted the request). If the transfer FAILED (or no result yet), Verify throws -> execution fails -> the SCL: Error Alerts error workflow emails help@goodmove.xyz. Only a COMPLETED transfer proceeds to Mark Sent. Set this flow Settings -> Error Workflow = SCL: Error Alerts. Re-select the AWS account credential on ListFileTransferResults after import."
   }
 }

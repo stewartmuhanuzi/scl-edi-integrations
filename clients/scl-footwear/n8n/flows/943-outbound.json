@@ -30,7 +30,7 @@
             },
             {
               "name": "pagination[page_size]",
-              "value": "3"
+              "value": "500"
             }
           ]
         },
@@ -53,7 +53,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// AM purchase_orders -> canonical PurchaseOrder[]. Falls back to a\n// realistic sample if AM has none yet (no vendor POs entered in the test\n// company). Mirrors adapters/erp/apparelmagic/lib/parsePurchaseOrder.js --\n// keep in sync if that file changes. Unlike pick tickets, no separate\n// Inventory combine is needed here -- the 943 deliberately sends no UPC\n// (DCG's own spec: \"UPC is not sent anymore\"), so parsePurchaseOrder.js's\n// existing fields are sufficient.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\nconst resp = $input.first().json.response || [];\nconst records = resp.length ? resp : [{\n  purchase_order_id: 'SAMPLE-4000', vendor_id: '2', warehouse_id: '1',\n  date: new Date().toISOString().slice(0,10), date_start: null, date_due: new Date(Date.now() + 30*24*60*60*1000).toISOString().slice(0,10),\n  shipping_address_override: '0', address_1: '111 Main Street', address_2: null, city: 'West Palm Beach', state: 'FL', postal_code: '33405', country: 'USA',\n  ship_via: 'PARCEL', tracking_number: 'SAMPLE-TRACK-123', qty: '100', qty_received: '0', qty_open: '100', amount: '2500.00',\n  purchase_order_items: [ { product_id: '4', sku_id: '4', attr_2: 'BLK', size: 'M100', style_number: 'JEAN1', description: 'Classic Denim Jean', qty: '100', qty_open: '100', qty_received: '0', unit_cost: '9.695', amount: '969.50' } ]\n}];\nconst isSample = resp.length === 0;\n\nreturn records.map((record) => ({ json: { isSample, purchaseOrder: {\n  purchaseOrderId: record.purchase_order_id, vendorId: record.vendor_id, warehouseId: record.warehouse_id || null,\n  date: record.date ?? null, dateStart: record.date_start || null, dateDue: record.date_due || null,\n  shipTo: { address1: record.shipping_address_override === '1' ? record.shipping_address_1 : record.address_1, address2: record.shipping_address_override === '1' ? record.shipping_address_2 : record.address_2, city: record.shipping_address_override === '1' ? record.shipping_city : record.city, state: record.shipping_address_override === '1' ? record.shipping_state : record.state, zip: record.shipping_address_override === '1' ? record.shipping_postal_code : record.postal_code, country: record.shipping_address_override === '1' ? record.shipping_country : record.country },\n  shipVia: record.ship_via || null, trackingNumber: record.tracking_number || null,\n  qty: num(record.qty), qtyReceived: num(record.qty_received), qtyOpen: num(record.qty_open), amount: num(record.amount),\n  lines: (record.purchase_order_items || []).map((item) => ({ productId: item.product_id, skuId: item.sku_id, color: item.attr_2 || null, size: item.size || null, styleNumber: item.style_number || null, description: item.description || null, qty: num(item.qty), qtyOpen: num(item.qty_open), qtyReceived: num(item.qty_received), unitCost: num(item.unit_cost), amount: num(item.amount) })),\n} } }));"
+        "jsCode": "// AM purchase_orders -> canonical PurchaseOrder[]. Falls back to a\n// realistic sample if AM has none yet (no vendor POs entered in the test\n// company). Mirrors adapters/erp/apparelmagic/lib/parsePurchaseOrder.js --\n// keep in sync if that file changes. Unlike pick tickets, no separate\n// Inventory combine is needed here -- the 943 deliberately sends no UPC\n// (DCG's own spec: \"UPC is not sent anymore\"), so parsePurchaseOrder.js's\n// existing fields are sufficient.\nconst num = (v) => (v == null || v === '' ? null : Number(v));\n// Pagination returns one item per page -- flatten every page's response\n// array into a single list of PO records (works for 1 page or many).\nconst resp = $input.all().flatMap((i) => i.json.response || []);\nconst records = resp.length ? resp : [{\n  purchase_order_id: 'SAMPLE-4000', vendor_id: '2', warehouse_id: '1',\n  date: new Date().toISOString().slice(0,10), date_start: null, date_due: new Date(Date.now() + 30*24*60*60*1000).toISOString().slice(0,10),\n  shipping_address_override: '0', address_1: '111 Main Street', address_2: null, city: 'West Palm Beach', state: 'FL', postal_code: '33405', country: 'USA',\n  ship_via: 'PARCEL', tracking_number: 'SAMPLE-TRACK-123', qty: '100', qty_received: '0', qty_open: '100', amount: '2500.00',\n  purchase_order_items: [ { product_id: '4', sku_id: '4', attr_2: 'BLK', size: 'M100', style_number: 'JEAN1', description: 'Classic Denim Jean', qty: '100', qty_open: '100', qty_received: '0', unit_cost: '9.695', amount: '969.50' } ]\n}];\nconst isSample = resp.length === 0;\n\nreturn records.map((record) => ({ json: { isSample, purchaseOrder: {\n  purchaseOrderId: record.purchase_order_id, vendorId: record.vendor_id, warehouseId: record.warehouse_id || null,\n  date: record.date_internal || record.date || null, dateStart: record.date_start_internal || record.date_start || null, dateDue: record.date_due_internal || record.date_due || null,\n  shipTo: { address1: record.shipping_address_override === '1' ? record.shipping_address_1 : record.address_1, address2: record.shipping_address_override === '1' ? record.shipping_address_2 : record.address_2, city: record.shipping_address_override === '1' ? record.shipping_city : record.city, state: record.shipping_address_override === '1' ? record.shipping_state : record.state, zip: record.shipping_address_override === '1' ? record.shipping_postal_code : record.postal_code, country: record.shipping_address_override === '1' ? record.shipping_country : record.country },\n  shipVia: record.ship_via || null, trackingNumber: record.tracking_number || null, customerCode: record.att1_customer || null, salesOrderRef: record.att2_sales_order || null,\n  qty: num(record.qty), qtyReceived: num(record.qty_received), qtyOpen: num(record.qty_open), amount: num(record.amount),\n  lines: (record.purchase_order_items || []).map((item) => ({ productId: item.product_id, skuId: item.sku_id, color: item.attr_2 || null, size: item.size || null, styleNumber: item.style_number || null, description: item.description || null, qty: num(item.qty), qtyOpen: num(item.qty_open), qtyReceived: num(item.qty_received), unitCost: num(item.unit_cost), amount: num(item.amount) })),\n} } }));"
       },
       "id": "parse-purchase-orders",
       "name": "Parse Purchase Order (or sample)",
@@ -67,7 +67,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Ports adapters/edi/x12-dcg/lib/{envelope,itemCode,build943}.js into a\n// single n8n Code node (Code nodes can't import repo files). Keep in sync\n// with those files if the builder logic changes -- see\n// adapters/edi/x12-dcg/schema-notes.md for the full field mapping and every\n// open question flagged below. Runs once PER purchase order -- each PO is\n// its own 943 shipment-advice transaction, matching 940's per-shipment\n// pattern (not batched like 888).\nconst ELEMENT_SEP = '|';\nconst SEGMENT_TERM = '\\n';\nfunction segment(...elements) { return elements.map((e) => (e ?? '')).join(ELEMENT_SEP); }\nfunction pad15(value) { return String(value ?? '').padEnd(15, ' ').slice(0, 15); }\n\nfunction buildEnvelope(cfg, bodySegments) {\n  const {\n    senderQualifier = 'ZZ', senderId, receiverQualifier = 'ZZ', receiverId,\n    interchangeControlNumber, groupControlNumber, transactionSetControlNumber = '0001',\n    functionalIdentifierCode, transactionSetIdentifierCode,\n    responsibleAgencyCode = 'X', versionReleaseIndustryCode = '004010',\n    interchangeControlVersion = '00401', usageIndicator = 'T', date = new Date(),\n  } = cfg;\n  const yy = String(date.getUTCFullYear()).slice(2);\n  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');\n  const dd = String(date.getUTCDate()).padStart(2, '0');\n  const hh = String(date.getUTCHours()).padStart(2, '0');\n  const min = String(date.getUTCMinutes()).padStart(2, '0');\n  const isaDate = `${yy}${mm}${dd}`;\n  const gsDate = `${date.getUTCFullYear()}${mm}${dd}`;\n  const time = `${hh}${min}`;\n  const isaControl = String(interchangeControlNumber).padStart(9, '0');\n  const isa = segment('ISA', '00', pad15(''), '00', pad15(''), senderQualifier, pad15(senderId), receiverQualifier, pad15(receiverId), isaDate, time, 'U', interchangeControlVersion, isaControl, '0', usageIndicator, '>');\n  const gs = segment('GS', functionalIdentifierCode, senderId, receiverId, gsDate, time, String(groupControlNumber), responsibleAgencyCode, versionReleaseIndustryCode);\n  const st = segment('ST', transactionSetIdentifierCode, transactionSetControlNumber);\n  const se = segment('SE', String(bodySegments.length + 2), transactionSetControlNumber);\n  const ge = segment('GE', '1', String(groupControlNumber));\n  const iea = segment('IEA', '1', isaControl);\n  return [isa, gs, st, ...bodySegments, se, ge, iea].join(SEGMENT_TERM) + SEGMENT_TERM;\n}\n\nfunction vendorItemNumber(styleNumber, color, size) {\n  return `${styleNumber ?? ''}${color ?? ''}${size ?? ''}`.toUpperCase().replace(/\\s+/g, '');\n}\nfunction ccyymmdd(isoDate) { return isoDate ? isoDate.replace(/-/g, '') : null; }\nfunction ccyymmddFromDate(date) {\n  const yyyy = date.getUTCFullYear();\n  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');\n  const dd = String(date.getUTCDate()).padStart(2, '0');\n  return `${yyyy}${mm}${dd}`;\n}\n\nfunction buildW06(purchaseOrder, { transactionTypeCode, date }) {\n  const orderNumber = purchaseOrder.purchaseOrderId ?? '';\n  return segment('W06', 'F', orderNumber, ccyymmddFromDate(date), orderNumber, '', '', '', '', '', '', transactionTypeCode);\n}\nfunction buildWarehouseLoop(warehouseCode) {\n  if (!warehouseCode) return [];\n  return [segment('N1', 'WH', warehouseCode), segment('PER', 'WH', warehouseCode)];\n}\nfunction buildHeaderN9(purchaseOrder, { orderReference }) {\n  const segs = [];\n  if (orderReference) segs.push(segment('N9', 'CO', orderReference));\n  if (purchaseOrder.shipVia) segs.push(segment('N9', 'KK', purchaseOrder.shipVia));\n  if (purchaseOrder.trackingNumber) segs.push(segment('N9', 'SI', purchaseOrder.trackingNumber));\n  return segs;\n}\nfunction buildG62(purchaseOrder) {\n  const expected = ccyymmdd(purchaseOrder.dateDue);\n  return expected ? [segment('G62', '17', expected)] : [];\n}\nfunction buildLineSegments(line, index, { brandDescription, brandCode }) {\n  const lineNumber = String(index + 1).padStart(6, '0');\n  const segs = [\n    segment('W04', String(line.qty ?? ''), 'EA', '', 'VN', vendorItemNumber(line.styleNumber, line.color, line.size), 'IT', line.styleNumber ?? '', '', '', '', lineNumber),\n  ];\n  if (line.description) segs.push(segment('G69', line.description));\n  if (brandDescription) segs.push(segment('N9', 'DI', brandDescription));\n  if (brandCode) segs.push(segment('N9', 'DV', brandCode));\n  return segs;\n}\nfunction build943(purchaseOrder, options = {}) {\n  const { warehouseCode, orderReference, brandDescription, brandCode, transactionTypeCode = 'PO', date = new Date(), envelope = {} } = options;\n  const body = [\n    buildW06(purchaseOrder, { transactionTypeCode, date }),\n    ...buildWarehouseLoop(warehouseCode),\n    ...buildHeaderN9(purchaseOrder, { orderReference }),\n    ...buildG62(purchaseOrder),\n  ];\n  (purchaseOrder.lines ?? []).forEach((line, index) => { body.push(...buildLineSegments(line, index, { brandDescription, brandCode })); });\n  return buildEnvelope({ functionalIdentifierCode: 'AR', transactionSetIdentifierCode: '943', ...envelope, date }, body);\n}\n\nconst purchaseOrder = $json.purchaseOrder;\nconst now = new Date();\nconst controlNumber = Number(String(Date.now()).slice(-9));\n\nconst x12 = build943(purchaseOrder, {\n  warehouseCode: '001', // TBD -- confirm the real DCG-side warehouse/location code with Chi Cao, see schema-notes.md\n  date: now,\n  envelope: {\n    senderId: 'SCLFOOTWEAR',  // TBD -- confirm exact ISA sender ID DCG expects for SCL\n    receiverId: 'DCG',        // TBD -- confirm exact ISA receiver ID DCG expects for SCL\n    interchangeControlNumber: controlNumber,\n    groupControlNumber: controlNumber,\n    usageIndicator: 'T', // TEST -- flip to 'P' only once DCG confirms this is a real send\n  },\n});\n\nconst fileName = `SCL_943_${String(purchaseOrder.purchaseOrderId).replace(/[^a-zA-Z0-9-]/g, '_')}_${now.toISOString().replace(/[:.]/g, '-')}.txt`;\nconst dedupeKey = `943|${purchaseOrder.purchaseOrderId}`;\n\nreturn {\n  json: {\n    fileName, dedupeKey, correlationId: dedupeKey,\n    purchaseOrderId: purchaseOrder.purchaseOrderId, vendorId: purchaseOrder.vendorId,\n    docType: '943', direction: 'outbound', status: 'created',\n    externalIds: JSON.stringify({ controlNumber, purchaseOrderId: purchaseOrder.purchaseOrderId, isSample: $json.isSample }),\n  },\n  binary: {\n    data: { data: Buffer.from(x12, 'utf-8').toString('base64'), mimeType: 'text/plain', fileName },\n  },\n};"
+        "jsCode": "// Ports adapters/edi/x12-dcg/lib/{envelope,itemCode,build943}.js into a\n// single n8n Code node (Code nodes can't import repo files). Keep in sync\n// with those files if the builder logic changes -- see\n// adapters/edi/x12-dcg/schema-notes.md for the full field mapping and every\n// open question flagged below. Runs once PER purchase order -- each PO is\n// its own 943 shipment-advice transaction, matching 940's per-shipment\n// pattern (not batched like 888).\nconst ELEMENT_SEP = '|';\nconst SEGMENT_TERM = '\\n';\nfunction segment(...elements) { return elements.map((e) => (e ?? '')).join(ELEMENT_SEP); }\nfunction pad15(value) { return String(value ?? '').padEnd(15, ' ').slice(0, 15); }\n\nfunction buildEnvelope(cfg, bodySegments) {\n  const {\n    senderQualifier = 'ZZ', senderId, receiverQualifier = 'ZZ', receiverId,\n    interchangeControlNumber, groupControlNumber, transactionSetControlNumber = '0001',\n    functionalIdentifierCode, transactionSetIdentifierCode,\n    responsibleAgencyCode = 'X', versionReleaseIndustryCode = '004010',\n    interchangeControlVersion = '00401', usageIndicator = 'T', date = new Date(),\n  } = cfg;\n  const yy = String(date.getUTCFullYear()).slice(2);\n  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');\n  const dd = String(date.getUTCDate()).padStart(2, '0');\n  const hh = String(date.getUTCHours()).padStart(2, '0');\n  const min = String(date.getUTCMinutes()).padStart(2, '0');\n  const isaDate = `${yy}${mm}${dd}`;\n  const gsDate = `${date.getUTCFullYear()}${mm}${dd}`;\n  const time = `${hh}${min}`;\n  const isaControl = String(interchangeControlNumber).padStart(9, '0');\n  const isa = segment('ISA', '00', pad15(''), '00', pad15(''), senderQualifier, pad15(senderId), receiverQualifier, pad15(receiverId), isaDate, time, 'U', interchangeControlVersion, isaControl, '0', usageIndicator, '>');\n  const gs = segment('GS', functionalIdentifierCode, senderId, receiverId, gsDate, time, String(groupControlNumber), responsibleAgencyCode, versionReleaseIndustryCode);\n  const st = segment('ST', transactionSetIdentifierCode, transactionSetControlNumber);\n  const se = segment('SE', String(bodySegments.length + 2), transactionSetControlNumber);\n  const ge = segment('GE', '1', String(groupControlNumber));\n  const iea = segment('IEA', '1', isaControl);\n  return [isa, gs, st, ...bodySegments, se, ge, iea].join(SEGMENT_TERM) + SEGMENT_TERM;\n}\n\nfunction vendorItemNumber(styleNumber, color, size) {\n  return `${styleNumber ?? ''}${color ?? ''}${size ?? ''}`.toUpperCase().replace(/\\s+/g, '');\n}\nfunction ccyymmdd(isoDate) { return isoDate ? isoDate.replace(/-/g, '') : null; }\nfunction ccyymmddFromDate(date) {\n  const yyyy = date.getUTCFullYear();\n  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');\n  const dd = String(date.getUTCDate()).padStart(2, '0');\n  return `${yyyy}${mm}${dd}`;\n}\n\nfunction buildW06(purchaseOrder, { transactionTypeCode, date }) {\n  const orderNumber = purchaseOrder.purchaseOrderId ?? '';\n  return segment('W06', 'F', orderNumber, ccyymmddFromDate(date), orderNumber, '', '', '', '', '', '', transactionTypeCode);\n}\nfunction buildWarehouseLoop(warehouseCode) {\n  if (!warehouseCode) return [];\n  return [segment('N1', 'WH', warehouseCode), segment('PER', 'WH', warehouseCode)];\n}\nfunction buildHeaderN9(purchaseOrder, { orderReference }) {\n  const segs = [];\n  if (purchaseOrder.customerCode) segs.push(segment('N9', 'CH', purchaseOrder.customerCode));\n  const co = orderReference ?? purchaseOrder.salesOrderRef;\n  if (co) segs.push(segment('N9', 'CO', co));\n  if (purchaseOrder.shipVia) segs.push(segment('N9', 'KK', purchaseOrder.shipVia));\n  if (purchaseOrder.trackingNumber) segs.push(segment('N9', 'SI', purchaseOrder.trackingNumber));\n  return segs;\n}\nfunction buildG62(purchaseOrder) {\n  const expected = ccyymmdd(purchaseOrder.dateDue);\n  return expected ? [segment('G62', '17', expected)] : [];\n}\nfunction buildLineSegments(line, index, { brandDescription, brandCode }) {\n  const lineNumber = String(index + 1).padStart(6, '0');\n  const segs = [\n    segment('W04', String(line.qty ?? ''), 'EA', '', 'VN', vendorItemNumber(line.styleNumber, line.color, line.size), 'IT', line.styleNumber ?? '', '', '', '', lineNumber),\n  ];\n  if (line.description) segs.push(segment('G69', line.description));\n  if (brandDescription) segs.push(segment('N9', 'DI', brandDescription));\n  if (brandCode) segs.push(segment('N9', 'DV', brandCode));\n  return segs;\n}\nfunction build943(purchaseOrder, options = {}) {\n  const { warehouseCode, orderReference, brandDescription, brandCode, transactionTypeCode = 'PO', date = new Date(), envelope = {} } = options;\n  const body = [\n    buildW06(purchaseOrder, { transactionTypeCode, date }),\n    ...buildWarehouseLoop(warehouseCode),\n    ...buildHeaderN9(purchaseOrder, { orderReference }),\n    ...buildG62(purchaseOrder),\n  ];\n  (purchaseOrder.lines ?? []).forEach((line, index) => { body.push(...buildLineSegments(line, index, { brandDescription, brandCode })); });\n  return buildEnvelope({ functionalIdentifierCode: 'AR', transactionSetIdentifierCode: '943', ...envelope, date }, body);\n}\n\nconst purchaseOrder = $json.purchaseOrder;\nconst now = new Date();\nconst controlNumber = Number(String(Date.now()).slice(-9));\n\nconst x12 = build943(purchaseOrder, {\n  warehouseCode: '001', // TBD -- confirm the real DCG-side warehouse/location code with Chi Cao, see schema-notes.md\n  date: now,\n  envelope: {\n    senderId: 'SCLFOOTWEAR',  // TBD -- confirm exact ISA sender ID DCG expects for SCL\n    receiverId: 'DCG',        // TBD -- confirm exact ISA receiver ID DCG expects for SCL\n    interchangeControlNumber: controlNumber,\n    groupControlNumber: controlNumber,\n    usageIndicator: 'T', // TEST -- flip to 'P' only once DCG confirms this is a real send\n  },\n});\n\nconst fileName = `SCL_943_${String(purchaseOrder.purchaseOrderId).replace(/[^a-zA-Z0-9-]/g, '_')}_${now.toISOString().replace(/[:.]/g, '-')}.txt`;\nconst dedupeKey = `943|${purchaseOrder.purchaseOrderId}`;\n\nreturn {\n  json: {\n    fileName, dedupeKey, correlationId: dedupeKey,\n    purchaseOrderId: purchaseOrder.purchaseOrderId, vendorId: purchaseOrder.vendorId,\n    docType: '943', direction: 'outbound', status: 'created',\n    externalIds: JSON.stringify({ controlNumber, purchaseOrderId: purchaseOrder.purchaseOrderId, isSample: $json.isSample }),\n  },\n  binary: {\n    data: { data: Buffer.from(x12, 'utf-8').toString('base64'), mimeType: 'text/plain', fileName },\n  },\n};"
       },
       "id": "build-943",
       "name": "Build 943 X12",
@@ -76,7 +76,8 @@
       "position": [
         960,
         300
-      ]
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -96,7 +97,8 @@
         "postgres": {
           "name": "Postgres account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -132,7 +134,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// Postgres nodes don't reliably pass through binary data from their input\n// item, so pull the X12 file's binary back from Build 943 X12 by name, and\n// merge in the correlation_id Claim & Log just produced (needed by Mark Sent).\nconst meta = $('Build 943 X12').item.json;\nconst claim = $json;\nreturn [{\n  json: { ...meta, correlationId: claim.correlation_id },\n  binary: $('Build 943 X12').item.binary,\n}];"
+        "jsCode": "// Postgres nodes don't reliably pass through binary data from their input\n// item, so pull the X12 file's binary back from Build 943 X12 by name, and\n// merge in the correlation_id Claim & Log just produced (needed by Mark Sent).\nconst meta = $('Build 943 X12').item.json;\nconst claim = $json;\nreturn {\n  json: { ...meta, correlationId: claim.correlation_id },\n  binary: $('Build 943 X12').item.binary,\n};",
+        "mode": "runOnceForEachItem"
       },
       "id": "reattach-file",
       "name": "Reattach File + Metadata",
@@ -141,7 +144,8 @@
       "position": [
         1560,
         300
-      ]
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -164,7 +168,8 @@
         "aws": {
           "name": "AWS account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -202,7 +207,8 @@
         "aws": {
           "name": "AWS account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -215,14 +221,118 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2160,
+        2760,
         300
       ],
       "credentials": {
         "postgres": {
           "name": "Postgres account"
         }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Normalize a failed item (from any node's error output) into a consistent\n// shape for the errors table. Item shape varies by which node failed, so\n// pull the correlation id and message defensively.\nconst j = $json || {};\nconst err = j.error || {};\nconst poId = j.purchaseOrderId || (j.purchaseOrder && j.purchaseOrder.purchaseOrderId) || null;\nconst correlationId = j.correlationId || j.dedupeKey || (poId ? ('943|' + poId) : 'unknown');\nconst rootCause = String(err.message || err.description || 'DCG 943 outbound failure').slice(0, 500);\nconst detail = JSON.stringify({ message: err.message || null, poId, stack: err.stack ? String(err.stack).slice(0, 1000) : null });\nreturn { json: { correlationId, rootCause, detail } };"
+      },
+      "id": "format-error",
+      "name": "Format Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO errors (correlation_id, root_cause, detail, retry_eligible)\nVALUES ($1, $2, $3::jsonb, true)\nRETURNING id, correlation_id;",
+        "options": {
+          "queryReplacement": "={{ $json.correlationId }},{{ $json.rootCause }},{{ $json.detail }}"
+        }
+      },
+      "id": "log-error",
+      "name": "Log Error (Supabase)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1760,
+        520
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
       }
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-for-dcg",
+      "name": "Wait for DCG",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://transfer.us-east-2.amazonaws.com/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Amz-Target",
+              "value": "TransferService.ListFileTransferResults"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/x-amz-json-1.1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ConnectorId: 'c-71cf9ddb758b4376b', TransferId: JSON.parse($('StartFileTransfer (DCG)').item.json.data).TransferId }) }}",
+        "options": {}
+      },
+      "id": "list-transfer-results",
+      "name": "ListFileTransferResults (DCG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2360,
+        300
+      ],
+      "credentials": {
+        "aws": {
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Confirm the file actually landed at DCG. StartFileTransfer's 200 only means\n// AWS ACCEPTED the request; ListFileTransferResults gives the real outcome.\n// A throw here fails the execution, which fires the SCL: Error Alerts workflow\n// and emails help@goodmove.xyz. (AWS x-amz-json-1.1 responses arrive as a raw\n// string under $json.data -- see build-n8n-workflow skill gotcha #7.)\nconst body = JSON.parse($json.data);\nconst results = body.FileTransferResults || [];\nif (results.length === 0) {\n  throw new Error('DCG delivery NOT confirmed: no transfer results returned yet. Increase the Wait, or check the connector.');\n}\nconst failed = results.filter((r) => r.StatusCode !== 'COMPLETED');\nif (failed.length > 0) {\n  const f = failed[0];\n  throw new Error('DCG delivery FAILED: ' + (f.FailureCode || 'unknown') + ' - ' + (f.FailureMessage || '') + ' (file: ' + (f.FilePath || '?') + ')');\n}\nreturn $json; // all COMPLETED -> continue to Mark Sent"
+      },
+      "id": "verify-transfer",
+      "name": "Verify Transfer (DCG)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2560,
+        300
+      ]
     }
   ],
   "connections": {
@@ -267,6 +377,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -275,6 +392,13 @@
         [
           {
             "node": "New File?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Error",
             "type": "main",
             "index": 0
           }
@@ -301,6 +425,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -312,10 +443,80 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "StartFileTransfer (DCG)": {
+      "main": [
+        [
+          {
+            "node": "Wait for DCG",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Sent (Supabase)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "node": "Log Error (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for DCG": {
+      "main": [
+        [
+          {
+            "node": "ListFileTransferResults (DCG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ListFileTransferResults (DCG)": {
+      "main": [
+        [
+          {
+            "node": "Verify Transfer (DCG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Transfer (DCG)": {
       "main": [
         [
           {
@@ -329,6 +530,6 @@
   },
   "pinData": {},
   "meta": {
-    "instructions": "Pulls up to 3 real AM purchase orders (falls back to one realistic sample if AM's test company has none yet), ports adapters/edi/x12-dcg/lib/{envelope,itemCode,build943}.js into the 'Build 943 X12' Code node (runs ONCE PER purchase order -- each PO is its own 943 shipment-advice transaction to DCG, matching 940's per-shipment pattern, unlike 888 which batches). No Inventory combine needed (unlike 940/888) -- DCG's 943 spec deliberately sends no UPC. Dedupes/logs to Supabase per purchase order, uploads each X12 file to S3, pushes it to DCG via StartFileTransfer -- StartFileTransfer's SendFilePaths already uses the correct $('Reattach File + Metadata').item.json.fileName reference from day one (the $json.fileName bug that silently broke 888/940's first sends). Known gaps (see adapters/edi/x12-dcg/schema-notes.md): options.warehouseCode is a placeholder ('001'), no canonical AM-to-DCG warehouse-code mapping exists yet; N9|CO position (header vs. trailing) is genuinely inconsistent between DCG's own two real samples; several W04 trailing elements seen in DCG's real sample are undocumented and deliberately not replicated. Also TBD: ISA sender/receiver IDs, and confirming transaction-type code 'PO' with Chi Cao (well-supported default from a real sample, not yet explicitly confirmed). After import, re-select credentials: Query Auth account (Get AM Purchase Orders), Postgres account (Claim & Log, Mark Sent), AWS account (Upload to S3, StartFileTransfer). Uses usageIndicator 'T' (test) and stream 'TEST' throughout."
+    "instructions": "Pulls all real AM purchase orders in one request (page_size 500 -- AM ignores page_number for out-of-range pages so a pagination loop is unreliable; bump page_size if POs ever approach 500) (falls back to one realistic sample if AM's test company has none yet), ports adapters/edi/x12-dcg/lib/{envelope,itemCode,build943}.js into the 'Build 943 X12' Code node (runs ONCE PER purchase order -- each PO is its own 943 shipment-advice transaction to DCG, matching 940's per-shipment pattern, unlike 888 which batches). No Inventory combine needed (unlike 940/888) -- DCG's 943 spec deliberately sends no UPC. Dedupes/logs to Supabase per purchase order, uploads each X12 file to S3, pushes it to DCG via StartFileTransfer -- StartFileTransfer's SendFilePaths already uses the correct $('Reattach File + Metadata').item.json.fileName reference from day one (the $json.fileName bug that silently broke 888/940's first sends). Known gaps (see adapters/edi/x12-dcg/schema-notes.md): options.warehouseCode is a placeholder ('001'), no canonical AM-to-DCG warehouse-code mapping exists yet; N9|CO position (header vs. trailing) is genuinely inconsistent between DCG's own two real samples; several W04 trailing elements seen in DCG's real sample are undocumented and deliberately not replicated. Also TBD: ISA sender/receiver IDs, and confirming transaction-type code 'PO' with Chi Cao (well-supported default from a real sample, not yet explicitly confirmed). After import, re-select credentials: Query Auth account (Get AM Purchase Orders), Postgres account (Claim & Log, Mark Sent), AWS account (Upload to S3, StartFileTransfer). Uses usageIndicator 'T' (test) and stream 'TEST' throughout. Each PO is an independent file/transfer (Build 943 runs once per PO); failure is isolated per PO -- any node that fails on a single PO routes it to the error branch (Format Error -> Log Error, into the errors table) while the rest keep flowing, via onError=continueErrorOutput. Re-select the Postgres credential on Log Error after import. INLINE DELIVERY VERIFICATION: after StartFileTransfer, Wait 5s -> ListFileTransferResults -> Verify Transfer (DCG) confirms the file actually reached DCG (StartFileTransfer 200 only means AWS accepted the request). If the transfer FAILED (or no result yet), Verify throws -> execution fails -> the SCL: Error Alerts error workflow emails help@goodmove.xyz. Only a COMPLETED transfer proceeds to Mark Sent. Set this flow Settings -> Error Workflow = SCL: Error Alerts. Re-select the AWS account credential on ListFileTransferResults after import."
   }
 }

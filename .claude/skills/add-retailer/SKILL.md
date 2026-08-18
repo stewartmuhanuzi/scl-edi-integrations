@@ -33,9 +33,9 @@ clients/<client>/n8n/flows/850-inbound.json      -> retailers/<slug>/850-inbound
 clients/<client>/n8n/flows/856-810-outbound.json -> retailers/<slug>/856-810-outbound.json
 ```
 
-Do **not** copy DCG/3PL-facing flows (`am-data-pulls.json`, future
-888/940/943/944/945) — one 3PL serves every retailer, those stay shared in
-`flows/`.
+Do **not** copy DCG/3PL-facing flows (`888-outbound.json`,
+`940-outbound.json`, `943-outbound.json`, future 944/945) — one 3PL serves
+every retailer, those stay shared in `flows/`.
 
 ## 3. Apply the retailer config header (the only allowed diff)
 
